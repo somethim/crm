@@ -1,0 +1,35 @@
+// A dialog form row: label, text box, and the field's validation error below it.
+
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { LabeledField } from "../shared/labeled-field.slint";
+
+export component FormField inherits VerticalLayout {
+    in property <string> label;
+    in property <string> placeholder;
+    in property <string> error;
+    in-out property <string> text <=> edit.text;
+    callback accepted();
+    spacing: 2px;
+    forward-focus: edit;
+
+    LabeledField {
+        label: root.label;
+        edit := LineEdit {
+            placeholder-text: root.placeholder;
+            horizontal-stretch: 1;
+            min-width: 260px;
+            height: Theme.field-height;
+            accepted => { root.accepted(); }
+        }
+    }
+
+    if root.error != "": HorizontalLayout {
+        padding-left: Theme.label-width + Theme.spacing;
+        Text {
+            text: root.error;
+            color: Theme.error-color;
+            wrap: word-wrap;
+        }
+    }
+}

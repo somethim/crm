@@ -1,0 +1,102 @@
+// The order filters: a Shitje | Blerje toggle with "Pastro", then Kërko and the
+// Nga / Deri dates. Applied live (the search text after 200 ms).
+
+import { Button, LineEdit } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { DateField } from "../shared/date-field.slint";
+import { LabeledField } from "../shared/labeled-field.slint";
+import { OrdersBridge } from "bridge.slint";
+
+// One half of the Shitje | Blerje toggle: the selected half is the accent button.
+component KindButton inherits Button {
+    in property <int> kind;
+    primary: OrdersBridge.filter-kind == root.kind;
+    accessible-checkable: true;
+    accessible-checked: OrdersBridge.filter-kind == root.kind;
+    clicked => {
+        if (OrdersBridge.filter-kind != root.kind) {
+            OrdersBridge.filter-kind = root.kind;
+            OrdersBridge.filter-changed();
+        }
+    }
+}
+
+export component Filters inherits VerticalLayout {
+    property <length> label-w: 48px;
+    property <int> search-focus-serial: OrdersBridge.search-focus-serial;
+    changed search-focus-serial => {
+        search.focus();
+        search.select-all();
+    }
+    spacing: Theme.padding;
+
+    HorizontalLayout {
+        spacing: Theme.padding;
+        HorizontalLayout {
+            spacing: 0px;
+            horizontal-stretch: 0;
+            sale := KindButton {
+                kind: 0;
+                text: "Shitje";
+                min-width: 96px;
+            }
+            purchase := KindButton {
+                kind: 1;
+                text: "Blerje";
+                min-width: 96px;
+            }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        export := Button {
+            text: "Eksporto…";
+            enabled: OrdersBridge.list-rows.length > 0 && OrdersBridge.filter-error == "";
+            clicked => { OrdersBridge.export-list(); }
+        }
+        clear := Button {
+            text: "Pastro";
+            clicked => { OrdersBridge.clear-filters(); }
+        }
+    }
+
+    LabeledField {
+        label: "Kërko";
+        label-width: root.label-w;
+        spacing: Theme.padding;
+        search := LineEdit {
+            placeholder-text: "Kërko porosi… (Nr. ose emër)";
+            text <=> OrdersBridge.filter-text;
+            edited => { OrdersBridge.filter-text-edited(); }
+        }
+    }
+
+    HorizontalLayout {
+        spacing: Theme.padding;
+        LabeledField {
+            label: "Nga";
+            label-width: root.label-w;
+            spacing: Theme.padding;
+            from := DateField {
+                text <=> OrdersBridge.filter-from;
+                // «Deri» before «Nga» is refused (RANGE_REVERSED): the calendar greys those days.
+                max-date: OrdersBridge.filter-to;
+                changed(iso) => { OrdersBridge.filter-changed(); }
+            }
+        }
+        LabeledField {
+            label: "Deri";
+            label-width: root.label-w;
+            spacing: Theme.padding;
+            to := DateField {
+                text <=> OrdersBridge.filter-to;
+                min-date: OrdersBridge.filter-from;
+                changed(iso) => { OrdersBridge.filter-changed(); }
+            }
+        }
+    }
+
+    if OrdersBridge.filter-error != "": Text {
+        text: OrdersBridge.filter-error;
+        color: Theme.error-color;
+        wrap: word-wrap;
+    }
+}

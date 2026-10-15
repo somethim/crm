@@ -1,0 +1,112 @@
+// The client / supplier property dialog ("Klient i ri", "Furnitori: {emri}", …).
+// Ruaj saves and closes, Fshi (a saved record only) deletes after a confirmation and
+// closes, Anulo / Esc closes without saving. Enter in a field = Ruaj.
+
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { InputBlocker } from "../shared/busy-overlay.slint";
+import { FormField } from "form-field.slint";
+
+export component OwnerDialog inherits Dialog {
+    in property <string> caption: "Klient i ri";
+    title: root.caption;
+    in-out property <string> name;
+    in-out property <string> description;
+    in-out property <string> nipt;
+    in-out property <string> address;
+    in-out property <string> account;
+    in property <string> name-error;
+    in property <string> description-error;
+    in property <string> nipt-error;
+    in property <string> address-error;
+    in property <string> account-error;
+    // Editing a saved record (shows Fshi); false for a new one.
+    in property <bool> editing;
+    // A confirm or message box is open over this dialog.
+    in-out property <bool> input-blocked;
+    callback ok();
+    callback delete();
+    callback cancel();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width;
+    max-width: Theme.dialog-width;
+    preferred-width: Theme.dialog-width;
+    forward-focus: name-field;
+
+    FocusScope {
+        height: content.preferred-height;
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancel();
+                return accept;
+            }
+            reject
+        }
+
+        content := VerticalLayout {
+            alignment: start;
+            padding: Theme.dialog-padding;
+            spacing: Theme.padding;
+
+            name-field := FormField {
+                label: "Emri";
+                text <=> root.name;
+                error: root.name-error;
+                accepted => { root.ok(); }
+            }
+            description-field := FormField {
+                label: "Përshkrimi";
+                text <=> root.description;
+                error: root.description-error;
+                accepted => { root.ok(); }
+            }
+            nipt-field := FormField {
+                label: "NIPT";
+                text <=> root.nipt;
+                error: root.nipt-error;
+                accepted => { root.ok(); }
+            }
+            address-field := FormField {
+                label: "Adresa";
+                text <=> root.address;
+                error: root.address-error;
+                accepted => { root.ok(); }
+            }
+            account-field := FormField {
+                label: "Llogari";
+                text <=> root.account;
+                error: root.account-error;
+                accepted => { root.ok(); }
+            }
+
+            // Fixed order on every platform: Ruaj (Enter), Fshi (saved records only), Anulo (Esc).
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.spacing;
+                padding-top: Theme.padding;
+
+                save-button := DialogButton {
+                    text: "Ruaj";
+                    primary: true;
+                    clicked => { root.ok(); }
+                }
+                if root.editing: DialogButton {
+                    text: "Fshi";
+                    clicked => { root.delete(); }
+                }
+                cancel-button := DialogButton {
+                    text: "Anulo";
+                    clicked => { root.cancel(); }
+                }
+            }
+        }
+
+        if root.input-blocked: InputBlocker { }
+    }
+
+    changed input-blocked => {
+        if (!self.input-blocked) {
+            name-field.focus();
+        }
+    }
+}

@@ -1,0 +1,52 @@
+// Skedari → Rikthe nga rezervimi…: the backup copies in backups/, newest first.
+
+import { StandardTableView } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+
+export component RestoreDialog inherits Dialog {
+    title: "Rikthe nga rezervimi";
+    // Rows: Data, Lloji, Madhësia.
+    in property <[[StandardListViewItem]]> rows;
+    in-out property <int> current-row: -1;
+    callback restore(row: int);
+    callback cancel();
+    // A fixed size (the table scrolls), so the window manager floats it instead of tiling it.
+    min-width: 560px;
+    max-width: 560px;
+    preferred-width: 560px;
+    min-height: 400px;
+    max-height: 400px;
+    preferred-height: 400px;
+
+    VerticalLayout {
+        padding: Theme.dialog-padding;
+        spacing: Theme.spacing;
+
+        Text {
+            text: root.rows.length == 0 ? "Nuk u gjet asnjë rezervim." : "Zgjidhni rezervimin që do të rikthehet:";
+        }
+        table := StandardTableView {
+            columns: [
+                { title: "Data", min-width: 160px },
+                { title: "Lloji", min-width: 160px },
+                { title: "Madhësia", min-width: 100px },
+            ];
+            rows: root.rows;
+            current-row <=> root.current-row;
+            vertical-stretch: 1;
+        }
+    }
+
+    DialogButton {
+        text: "Rikthe";
+        primary: true;
+        enabled: root.current-row >= 0;
+        dialog-button-role: accept;
+        clicked => { root.restore(root.current-row); }
+    }
+    DialogButton {
+        text: "Anulo";
+        dialog-button-role: reject;
+        clicked => { root.cancel(); }
+    }
+}

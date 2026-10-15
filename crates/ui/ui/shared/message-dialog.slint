@@ -1,0 +1,32 @@
+// A message box with one OK button.
+
+import { DialogButton, Theme } from "theme.slint";
+
+export component MessageDialog inherits Dialog {
+    in property <string> caption: "CRM";
+    in property <string> text;
+    title: root.caption;
+    callback closed();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width-small;
+    max-width: Theme.dialog-width-small;
+    preferred-width: Theme.dialog-width-small;
+
+    VerticalLayout {
+        height: self.preferred-height;
+        alignment: start;
+        padding: Theme.dialog-padding;
+        Text {
+            text: root.text;
+            wrap: word-wrap;
+        }
+    }
+
+    ok := DialogButton {
+        text: "OK";
+        primary: true;
+        dialog-button-role: accept;
+        clicked => { root.closed(); }
+    }
+}

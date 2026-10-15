@@ -1,0 +1,35 @@
+// The main toolbar: [+ Porosi Shitje] [+ Porosi Blerje]. Ruaj, Printo and Fshi sit at
+// the bottom of the open order; Artikujt, Klientët, Furnitorët and Raporte live in the
+// menu bar only.
+
+import { Theme, ToolButton } from "../shared/theme.slint";
+import { Commands } from "menus.slint";
+
+export component Toolbar inherits Rectangle {
+    height: Theme.toolbar-height;
+    background: Theme.chrome-background;
+
+    HorizontalLayout {
+        padding-left: Theme.padding;
+        padding-right: Theme.padding;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: Theme.padding;
+        alignment: start;
+
+        new-sale := ToolButton {
+            text: "+ Porosi Shitje";
+            clicked => { Commands.new-sale(); }
+        }
+        new-purchase := ToolButton {
+            text: "+ Porosi Blerje";
+            clicked => { Commands.new-purchase(); }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.border;
+    }
+}

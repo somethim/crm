@@ -1,0 +1,62 @@
+// The command table shared by the menu bar, the toolbar and the keyboard shortcuts.
+// Every command is ignored while the lock screen, a modal dialog or the busy overlay is
+// up; feature commands go to the bridges of tasks 009/010/011.
+
+import { ShellBridge } from "bridges.slint";
+import { CatalogueBridge } from "../catalogue/index.slint";
+import { OrdersBridge } from "../orders/index.slint";
+import { ReportsBridge } from "../reports/index.slint";
+
+export global Commands {
+    out property <bool> available: !ShellBridge.locked && !ShellBridge.input-blocked && !ShellBridge.busy;
+    out property <bool> can-save: OrdersBridge.has-document;
+    out property <bool> can-print: OrdersBridge.has-document && OrdersBridge.current-is-saved;
+    out property <bool> can-delete: OrdersBridge.has-document && OrdersBridge.current-is-saved;
+
+    // Skedari
+    public function backup-now() { if (self.available) { ShellBridge.backup-now(); } }
+    public function backup-to-pc() { if (self.available) { ShellBridge.backup-to-pc(); } }
+    public function restore() { if (self.available) { ShellBridge.restore(); } }
+    public function change-password() { if (self.available) { ShellBridge.change-password(); } }
+    public function settings() { if (self.available) { ShellBridge.settings(); } }
+    public function lock() { if (!ShellBridge.locked) { ShellBridge.lock(); } }
+    public function exit() { if (!ShellBridge.busy) { ShellBridge.exit(); } }
+
+    // Porositë
+    public function new-sale() { if (self.available) { OrdersBridge.new-document(0); } }
+    public function new-purchase() { if (self.available) { OrdersBridge.new-document(1); } }
+    public function save() { if (self.available && self.can-save) { OrdersBridge.save-current(); } }
+    public function print() { if (self.available && self.can-print) { OrdersBridge.print-current(); } }
+    public function delete() { if (self.available && self.can-delete) { OrdersBridge.delete-current(); } }
+    public function close-tab() { if (self.available && OrdersBridge.has-document) { OrdersBridge.close-current(); } }
+    public function refresh() { if (self.available) { OrdersBridge.refresh(); } }
+    public function export-list() {
+        if (self.available && OrdersBridge.list-rows.length > 0 && OrdersBridge.filter-error == "") {
+            OrdersBridge.export-list();
+        }
+    }
+    public function find-order() { if (self.available) { OrdersBridge.focus-search(); } }
+    public function close-all-tabs() { if (self.available && OrdersBridge.tabs.length > 0) { OrdersBridge.close-all-tabs(); } }
+    public function prev-tab() {
+        if (self.available && OrdersBridge.tabs.length >= 2) {
+            OrdersBridge.select-tab(Math.mod(OrdersBridge.active-tab - 1 + OrdersBridge.tabs.length, OrdersBridge.tabs.length));
+        }
+    }
+    public function next-tab() {
+        if (self.available && OrdersBridge.tabs.length >= 2) {
+            OrdersBridge.select-tab(Math.mod(OrdersBridge.active-tab + 1, OrdersBridge.tabs.length));
+        }
+    }
+
+    // Artikujt, Klientët, Furnitorët (0, 1, 2)
+    public function open-list(kind: int) { if (self.available) { CatalogueBridge.open-list(kind); } }
+    public function import(kind: int) { if (self.available) { CatalogueBridge.import(kind); } }
+    public function export(kind: int) { if (self.available) { CatalogueBridge.export(kind); } }
+    public function new-product() { if (self.available) { CatalogueBridge.create(0); } }
+    public function new-client() { if (self.available) { CatalogueBridge.create(1); } }
+    public function new-supplier() { if (self.available) { CatalogueBridge.create(2); } }
+
+    // Raporte, Ndihmë
+    public function report() { if (self.available) { ReportsBridge.open-dialog(); } }
+    public function about() { if (self.available) { ShellBridge.about(); } }
+}

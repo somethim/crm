@@ -1,0 +1,413 @@
+// A dd.MM.yyyy date input with a calendar popup. Parsing, formatting and the month
+// grid happen in Rust (crm_domain::format, crm_ui::shell::calendar) through the
+// DateParse global, which every window that uses this field installs once.
+//
+// The calendar opens from the button at the right of the text box or with F4 /
+// Alt+Down in the field. Arrows move the highlighted day, PageUp / PageDown the
+// month, Enter or a click picks, Esc or a click outside closes. Picking writes
+// dd.MM.yyyy into the field and fires `changed` exactly as typing does.
+
+import { LineEdit, Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export struct ParsedDate {
+    ok: bool,
+    iso: string,
+    display: string,
+}
+
+// One cell of the calendar's six-week grid.
+export struct CalendarDay {
+    iso: string,
+    display: string,
+    day: int,
+    // In the shown month (the others are dimmed).
+    in-month: bool,
+    today: bool,
+    selected: bool,
+    // Inside the field's min-date ..= max-date (the others cannot be picked).
+    enabled: bool,
+}
+
+export global DateParse {
+    // Parses user input (d.M.yyyy, dd.MM.yyyy or yyyy-MM-dd).
+    pure callback parse(text: string) -> ParsedDate;
+    // Moves a valid date by `days`; an invalid one comes back unchanged with ok = false.
+    pure callback shift(text: string, days: int) -> ParsedDate;
+    // Moves a valid date by whole months, the day clamped to the month's length.
+    pure callback shift-months(text: string, months: int) -> ParsedDate;
+    // The day the calendar opens on: the field's date or today, moved into the bounds.
+    callback calendar-start(text: string, min: string, max: string) -> ParsedDate;
+    callback today() -> ParsedDate;
+    // Whether the date `text` lies in min ..= max (empty bounds are open).
+    pure callback allowed(text: string, min: string, max: string) -> bool;
+    // "Tetor 2026" for the month of `cursor`.
+    pure callback month-title(cursor: string) -> string;
+    // The 42 cells (Monday first) of the month containing `cursor`.
+    callback month-grid(cursor: string, selected: string, min: string, max: string) -> [CalendarDay];
+}
+
+// The drawn calendar glyph on the field's button: a page with a header bar, two rings
+// and a grid of dots (no symbol font needed).
+component CalendarIcon {
+    in property <brush> color;
+    width: 14px;
+    height: 14px;
+
+    Rectangle {
+        y: 2px;
+        height: 12px;
+        border-width: 1px;
+        border-color: root.color;
+        border-radius: 2px;
+    }
+
+    Rectangle {
+        y: 2px;
+        height: 3px;
+        background: root.color;
+        border-top-left-radius: 2px;
+        border-top-right-radius: 2px;
+    }
+
+    Rectangle {
+        x: 3px;
+        y: 0px;
+        width: 2px;
+        height: 4px;
+        background: root.color;
+    }
+
+    Rectangle {
+        x: 9px;
+        y: 0px;
+        width: 2px;
+        height: 4px;
+        background: root.color;
+    }
+
+    for i in 6: Rectangle {
+        x: 3px + mod(i, 3) * 3px;
+        y: 7px + floor(i / 3) * 3px;
+        width: 2px;
+        height: 2px;
+        background: root.color;
+    }
+}
+
+// The ‹ / › month buttons in the calendar header.
+component NavButton inherits Rectangle {
+    in property <string> glyph;
+    callback clicked();
+    width: 28px;
+    border-radius: 4px;
+    background: touch.has-hover ? Palette.foreground.transparentize(90%) : transparent;
+    accessible-role: button;
+    accessible-action-default => { root.clicked(); }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    Text {
+        text: root.glyph;
+        font-size: 18px;
+        color: Palette.foreground;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component DateField inherits HorizontalLayout {
+    in-out property <string> text;
+    in property <bool> enabled: true;
+    // The calendar's inclusive bounds (dd.MM.yyyy or yyyy-MM-dd; empty or invalid is
+    // no bound). Days outside are greyed and cannot be picked; typing is not limited.
+    in property <string> min-date;
+    in property <string> max-date;
+    out property <bool> valid: DateParse.parse(root.text).ok;
+    out property <string> iso: DateParse.parse(root.text).iso;
+    // Called with the ISO date whenever a valid date is entered or picked.
+    callback changed(iso: string);
+
+    // The calendar state lives here: the popup's contents cannot be read from outside.
+    // `cursor` is the highlighted day (ISO); the grid shows its month.
+    property <string> cursor;
+    property <string> today-iso;
+    property <string> title;
+    property <[CalendarDay]> days;
+    property <length> cell: 30px;
+
+    spacing: 2px;
+
+    function apply(parsed: ParsedDate) {
+        if (parsed.ok) {
+            root.text = parsed.display;
+            root.changed(parsed.iso);
+        }
+    }
+
+    function show-month(cursor: string) {
+        root.cursor = cursor;
+        root.title = DateParse.month-title(cursor);
+        root.days = DateParse.month-grid(cursor, root.text, root.min-date, root.max-date);
+    }
+
+    function move-days(days: int) {
+        root.show-month(DateParse.shift(root.cursor, days).iso);
+    }
+
+    function move-months(months: int) {
+        root.show-month(DateParse.shift-months(root.cursor, months).iso);
+    }
+
+    // Opens the calendar on the field's date (or today), unless the field is disabled.
+    public function open-calendar() {
+        if (!root.enabled) {
+            return;
+        }
+        root.today-iso = DateParse.today().iso;
+        root.show-month(DateParse.calendar-start(root.text, root.min-date, root.max-date).iso);
+        popup.show();
+    }
+
+    // Closes the calendar and gives the text box the focus back.
+    function dismiss() {
+        popup.close();
+        edit.focus();
+    }
+
+    // Writes an allowed day into the field (as typing would) and closes.
+    function pick(iso: string) {
+        if (DateParse.allowed(iso, root.min-date, root.max-date)) {
+            root.dismiss();
+            root.apply(DateParse.parse(iso));
+        }
+    }
+
+    // Not a focus stop itself: only intercepts a plain F4 / Alt+Down while the text box has focus.
+    keys := FocusScope {
+        enabled: false;
+        horizontal-stretch: 1;
+        capture-key-pressed(event) => {
+            // Only a plain F4: Ctrl+F4 / Ctrl+Shift+F4 close tabs (task 018).
+            if ((event.text == Key.F4 && !event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt)
+                    || (event.modifiers.alt && event.text == Key.DownArrow)) {
+                root.open-calendar();
+                return accept;
+            }
+            reject
+        }
+
+        edit := LineEdit {
+            text <=> root.text;
+            enabled: root.enabled;
+            placeholder-text: "dd.MM.yyyy";
+            min-width: 110px;
+            accepted(value) => { root.apply(DateParse.parse(value)); }
+            edited(value) => {
+                if (DateParse.parse(value).ok) {
+                    root.changed(DateParse.parse(value).iso);
+                }
+            }
+        }
+    }
+
+    open := Rectangle {
+        width: 26px;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: Theme.border;
+        background: !root.enabled ? transparent
+            : touch.pressed ? Palette.foreground.transparentize(80%)
+            : touch.has-hover ? Palette.foreground.transparentize(90%)
+            : Palette.control-background;
+        accessible-role: button;
+        accessible-label: "Zgjidhni datën";
+        accessible-enabled: root.enabled;
+        accessible-action-default => { root.open-calendar(); }
+
+        touch := TouchArea {
+            enabled: root.enabled;
+            mouse-cursor: pointer;
+            clicked => { root.open-calendar(); }
+        }
+
+        CalendarIcon {
+            color: Palette.foreground;
+            opacity: root.enabled ? 1 : 0.4;
+        }
+    }
+
+    popup := PopupWindow {
+        x: 0px;
+        y: root.height + 2px;
+        width: 7 * root.cell + 16px;
+        // Padding, header, weekdays, grid, separator and "Sot", with the 4px spacing.
+        height: 2 * 8px + 30px + 22px + 6 * root.cell + 1px + 32px + 4 * 4px;
+        close-policy: PopupClosePolicy.close-on-click-outside;
+        forward-focus: calendar;
+
+        calendar := FocusScope {
+            key-pressed(event) => {
+                if (event.text == Key.LeftArrow) {
+                    root.move-days(-1);
+                } else if (event.text == Key.RightArrow) {
+                    root.move-days(1);
+                } else if (event.text == Key.UpArrow) {
+                    root.move-days(-7);
+                } else if (event.text == Key.DownArrow) {
+                    root.move-days(7);
+                } else if (event.text == Key.PageUp) {
+                    root.move-months(-1);
+                } else if (event.text == Key.PageDown) {
+                    root.move-months(1);
+                } else if (event.text == Key.Return) {
+                    root.pick(root.cursor);
+                } else if (event.text == Key.Escape) {
+                    root.dismiss();
+                } else {
+                    return reject;
+                }
+                accept
+            }
+
+            Rectangle {
+                background: Palette.background;
+                border-width: 1px;
+                border-color: Theme.border;
+                border-radius: 6px;
+                drop-shadow-blur: 6px;
+                drop-shadow-color: #00000040;
+
+                VerticalLayout {
+                    padding: 8px;
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        height: 30px;
+                        prev := NavButton {
+                            glyph: "‹";
+                            accessible-label: "Muaji i kaluar";
+                            clicked => { root.move-months(-1); }
+                        }
+
+                        month-title := Text {
+                            text: root.title;
+                            font-weight: 600;
+                            color: Palette.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        next := NavButton {
+                            glyph: "›";
+                            accessible-label: "Muaji tjetër";
+                            clicked => { root.move-months(1); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 22px;
+                        for name in ["Hë", "Ma", "Më", "En", "Pr", "Sh", "Di"]: Text {
+                            width: root.cell;
+                            text: name;
+                            font-size: 11px;
+                            color: Palette.foreground.transparentize(40%);
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle {
+                        height: 6 * root.cell;
+                        for day[i] in root.days: day-cell := Rectangle {
+                            x: mod(i, 7) * root.cell;
+                            y: floor(i / 7) * root.cell;
+                            width: root.cell;
+                            height: root.cell;
+                            accessible-role: button;
+                            accessible-label: day.display;
+                            accessible-enabled: day.enabled;
+                            accessible-item-selected: day.selected;
+                            accessible-action-default => { root.pick(day.iso); }
+
+                            Rectangle {
+                                x: 2px;
+                                y: 2px;
+                                width: parent.width - 4px;
+                                height: parent.height - 4px;
+                                border-radius: 4px;
+                                border-width: day.today ? 1px : 0px;
+                                border-color: day.selected ? Palette.accent-foreground : Palette.accent-background;
+                                background: day.selected ? Palette.accent-background
+                                    : !day.enabled ? transparent
+                                    : (day.iso == root.cursor || day-touch.has-hover) ? Palette.foreground.transparentize(88%)
+                                    : transparent;
+
+                                Text {
+                                    text: day.day;
+                                    color: day.selected ? Palette.accent-foreground : Palette.foreground;
+                                    opacity: !day.enabled ? 0.3 : day.in-month ? 1 : 0.45;
+                                    font-weight: day.today ? 600 : 400;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            // The keyboard highlight on the selected day: an inner ring.
+                            if day.iso == root.cursor && day.selected: Rectangle {
+                                x: 4px;
+                                y: 4px;
+                                width: parent.width - 8px;
+                                height: parent.height - 8px;
+                                border-radius: 3px;
+                                border-width: 1px;
+                                border-color: Palette.accent-foreground;
+                            }
+
+                            day-touch := TouchArea {
+                                enabled: day.enabled;
+                                clicked => { root.pick(day.iso); }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: Theme.border;
+                    }
+
+                    HorizontalLayout {
+                        height: 32px;
+                        alignment: center;
+                        today := Rectangle {
+                            width: 80px;
+                            border-radius: 4px;
+                            border-width: 1px;
+                            border-color: Theme.border;
+                            background: today-touch.has-hover && today-touch.enabled ? Palette.foreground.transparentize(90%) : Palette.control-background;
+                            accessible-role: button;
+                            accessible-label: "Sot";
+                            accessible-enabled: today-touch.enabled;
+                            accessible-action-default => { root.pick(root.today-iso); }
+
+                            today-touch := TouchArea {
+                                enabled: DateParse.allowed(root.today-iso, root.min-date, root.max-date);
+                                clicked => { root.pick(root.today-iso); }
+                            }
+
+                            Text {
+                                text: "Sot";
+                                color: Palette.foreground;
+                                opacity: today-touch.enabled ? 1 : 0.4;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

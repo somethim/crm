@@ -1,0 +1,151 @@
+// The orders bridge: everything the Rust workspace (crates/ui/src/orders) drives.
+// The first block is the 008 stub contract used by the shell (menu, toolbar, status
+// bar, exit); those names must not be renamed or removed. Task 010 added the rest.
+
+
+// One tab of the tab bar.
+export struct TabItem {
+    title: string,
+    dirty: bool,
+}
+
+// One suggestion of a search field (product or owner).
+export struct SuggestionItem {
+    label: string,
+    // Dimmed, right after the label: an owner's "(CITY – ADDRESS) · description".
+    note: string,
+    // Dimmed, right-aligned: an owner's NIPT, a product's stock.
+    detail: string,
+}
+
+// One row of the line grid (the last one is the placeholder).
+export struct GridRow {
+    number: string,
+    product: string,
+    qty: string,
+    price: string,
+    sell: string,
+    value: string,
+    stock: string,
+    // The "/ N" link opens the product editor.
+    stock-link: bool,
+    // Red "/ N": a free-text purchase line.
+    stock-warn: bool,
+    placeholder: bool,
+    // A deleted product's saved line: only Sasia and the ✕ (F-017).
+    locked: bool,
+    // Bumped by Rust on every change, so the cells re-show the committed text.
+    rev: int,
+}
+
+export global OrdersBridge {
+    // -- 008 contract ----------------------------------------------------------------
+    // 0 = Porosi Shitje, 1 = Porosi Blerje.
+    callback new-document(kind: int);
+    callback save-current();
+    callback print-current();
+    callback delete-current();
+    callback close-current();
+    callback refresh();
+    // Persists every open draft; the shell calls it before exiting.
+    callback flush-drafts();
+    in property <bool> has-document;
+    in property <bool> current-is-saved;
+    in property <int> open-tab-count;
+
+    // -- filters and list -------------------------------------------------------------
+    // 0 = Shitje, 1 = Blerje (the Shitje | Blerje toggle).
+    in-out property <int> filter-kind: 0;
+    in-out property <string> filter-text;
+    in-out property <string> filter-from;
+    in-out property <string> filter-to;
+    in property <string> filter-error;
+    // Kind or dates changed (applied at once).
+    callback filter-changed();
+    // The search text changed (applied after 200 ms).
+    callback filter-text-edited();
+    // "Pastro".
+    callback clear-filters();
+    // Ctrl+O (Kërko porosi): Rust bumps `search-focus-serial`, and the Kërko field
+    // then takes the focus with its text selected.
+    callback focus-search();
+    // "Eksporto…" / Porositë → "Eksporto listën…": the filtered list as XLSX.
+    callback export-list();
+    in property <int> search-focus-serial;
+    in property <[[StandardListViewItem]]> list-rows;
+    in-out property <int> list-current: -1;
+    // Enter or double-click on a list row.
+    callback open-order(row: int);
+    // A click on a list row (Rust detects the double-click).
+    callback list-clicked(row: int);
+    // A header click: sort by `column` (0 Nr., 1 Lloji, 2 Klienti, 3 Totali, 4 Data).
+    callback list-sort(column: int, ascending: bool);
+    // "{n} porosi · Totali: … LEK" under the list.
+    in property <string> list-summary;
+
+    // -- tabs -------------------------------------------------------------------------
+    in property <[TabItem]> tabs;
+    in property <int> active-tab: -1;
+    callback select-tab(index: int);
+    callback close-tab(index: int);
+    callback close-all-tabs();
+    callback close-other-tabs(index: int);
+
+    // -- document header and footer ---------------------------------------------------
+    // 0 = Shitje, 1 = Blerje.
+    in property <int> doc-kind;
+    in property <string> doc-number;
+    in-out property <string> owner-text;
+    in property <string> owner-nipt;
+    in property <string> owner-address;
+    // "NIPT: … · Adresa: …" under the owner field ("" hides the line).
+    in property <string> owner-detail;
+    in-out property <string> doc-description;
+    in-out property <string> doc-date;
+    in property <string> doc-total;
+    in property <[SuggestionItem]> owner-items;
+    // "{shown}/{total} sugjerime" above the owner suggestions.
+    in property <string> owner-count-text;
+    in-out property <int> owner-highlighted: -1;
+    in-out property <bool> owner-open;
+    // The owner field takes the focus when this moves (a new document).
+    in property <int> owner-focus-serial;
+    callback owner-edited(text: string);
+    callback owner-focused(text: string);
+    callback owner-chosen(index: int);
+    callback description-edited(text: string);
+    callback date-edited(iso: string);
+
+    // -- line grid --------------------------------------------------------------------
+    in property <[GridRow]> grid-rows;
+    // Programmatic focus: the cell (row, col) takes the focus when the serial moves.
+    in property <int> grid-focus-row;
+    in property <int> grid-focus-col;
+    in property <int> grid-focus-serial;
+    in-out property <int> grid-focus-done;
+    // The focused cell (-1 = none), kept by the grid.
+    in-out property <int> focused-row: -1;
+    in-out property <int> focused-col: -1;
+    // The product suggestions of the focused Artikulli cell.
+    in property <bool> dropdown-open;
+    in property <int> dropdown-row;
+    in property <[SuggestionItem]> product-items;
+    // "{shown}/{total} sugjerime" above the product suggestions.
+    in property <string> product-count-text;
+    in-out property <int> product-highlighted: -1;
+    // A key in a cell; true = handled (the text field does not see it).
+    callback grid-key(row: int, col: int, key: string, shift: bool, ctrl: bool, text: string) -> bool;
+    callback cell-edited(row: int, col: int, text: string);
+    callback cell-focused(row: int, col: int, text: string);
+    // Focus left the cell.
+    callback cell-committed(row: int, col: int, text: string);
+    // A click on a product suggestion.
+    callback product-chosen(index: int);
+    callback stock-clicked(row: int);
+    callback remove-row(row: int);
+    // A dialog, the busy overlay or the lock screen went away: the grid cell that
+    // had the focus takes it back (F-008).
+    callback refocus();
+    // A header field (Përshkrimi) took the focus: nothing to take back in the grid.
+    callback header-focused();
+}

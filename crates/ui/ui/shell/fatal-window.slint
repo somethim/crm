@@ -1,0 +1,46 @@
+// A small window for errors before (or instead of) the main window. With offer-restore it
+// asks whether to restore the newest backup copy.
+
+import { DialogButton, Theme } from "../shared/theme.slint";
+
+export component FatalWindow inherits Window {
+    title: "CRM";
+    in property <string> message;
+    in property <bool> offer-restore;
+    callback restore();
+    callback dismiss();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width;
+    max-width: Theme.dialog-width;
+    preferred-width: Theme.dialog-width;
+    min-height: content.preferred-height;
+    max-height: content.preferred-height;
+
+    content := VerticalLayout {
+        alignment: start;
+        padding: Theme.dialog-padding;
+        spacing: Theme.padding;
+
+        Text {
+            text: root.message;
+            wrap: word-wrap;
+        }
+
+        HorizontalLayout {
+            alignment: end;
+            spacing: Theme.spacing;
+
+            if root.offer-restore: DialogButton {
+                text: "Rikthe nga rezervimi më i fundit";
+                primary: true;
+                clicked => { root.restore(); }
+            }
+            DialogButton {
+                text: root.offer-restore ? "Dil" : "OK";
+                primary: !root.offer-restore;
+                clicked => { root.dismiss(); }
+            }
+        }
+    }
+}

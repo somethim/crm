@@ -1,0 +1,55 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      # crt-static comes from .cargo/config.toml.
+      - name: Build crm.exe
+        run: cargo build --release -p crm --target x86_64-pc-windows-msvc
+
+      # crm.exe embeds Noto Sans (SIL OFL 1.1) and SQLite3 Multiple Ciphers via libsqlite3-sys
+      # (both MIT): every zip carries the licence texts.
+      - name: Package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path package/LICENSES | Out-Null
+          Copy-Item target/x86_64-pc-windows-msvc/release/crm.exe package/
+          Copy-Item README.md package/
+          Copy-Item crates/reports/assets/fonts/OFL.txt package/LICENSES/NotoSans-OFL.txt
+          Copy-Item vendor/libsqlite3-sys/LICENSE package/LICENSES/libsqlite3-sys-MIT.txt
+          Copy-Item vendor/libsqlite3-sys/LICENSE-sqlite3mc package/LICENSES/SQLite3MultipleCiphers-MIT.txt
+          Compress-Archive -Path package/* -DestinationPath crm-windows-x64.zip
+
+      - name: Check the zip contents
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive -Path crm-windows-x64.zip -DestinationPath zip-check
+          foreach ($f in 'crm.exe', 'README.md', 'LICENSES/NotoSans-OFL.txt', 'LICENSES/libsqlite3-sys-MIT.txt', 'LICENSES/SQLite3MultipleCiphers-MIT.txt') {
+            if (-not (Test-Path -PathType Leaf (Join-Path zip-check $f))) { throw "missing from the zip: $f" }
+          }
+          Get-ChildItem -Recurse zip-check | Select-Object -ExpandProperty FullName
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crm-windows-x64
+          path: crm-windows-x64.zip
+          if-no-files-found: error

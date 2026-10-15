@@ -1,0 +1,144 @@
+// The shared frame of the Artikujt, Klientët and Furnitorët windows: toolbar, search box,
+// a sortable table, and a status line. Keys: Ins = Shto, F2/Enter/double-click = Ndrysho,
+// Del = Fshi, F5 = Rifresko, Esc = Mbyll. Rust (crates/ui/src/catalogue) fills the rows.
+
+import { LineEdit, StandardTableView } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { InputBlocker } from "../shared/busy-overlay.slint";
+import { ListToolbar } from "list-toolbar.slint";
+
+// The per-window state and callbacks Rust drives. Every list window instance has its own
+// instance of this global, so one Rust controller serves all three window types.
+export global CatalogueList {
+    in-out property <string> search-text;
+    in-out property <[[StandardListViewItem]]> rows;
+    in-out property <int> current-row: -1;
+    in-out property <string> status-text;
+    // A modal dialog is open over this window.
+    in-out property <bool> input-blocked;
+    // A background job (restore, import, …) is running: no input (F-029).
+    in-out property <bool> busy;
+    // Bumped by Rust to give the keyboard focus back to the table.
+    in-out property <int> focus-request;
+
+    callback search-edited(text: string);
+    callback search-accepted(text: string);
+    callback add();
+    callback edit();
+    callback remove();
+    callback import();
+    callback export();
+    callback refresh();
+    callback close-window();
+    callback sort-ascending(column: int);
+    callback sort-descending(column: int);
+    // A left-button press on a row (Rust detects the double click).
+    callback row-pressed(row: int);
+}
+
+export component CatalogueListWindow inherits Window {
+    in property <string> search-placeholder;
+    in-out property <[TableColumn]> columns;
+    private property <int> focus-request: CatalogueList.focus-request;
+    changed focus-request => { table.focus(); }
+
+    min-width: 640px;
+    min-height: 400px;
+    preferred-width: 960px;
+    preferred-height: 640px;
+    forward-focus: search;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (CatalogueList.input-blocked || CatalogueList.busy) {
+                return accept;
+            }
+            if (event.text == Key.Insert) {
+                CatalogueList.add();
+                return accept;
+            }
+            if (event.text == Key.F2 || event.text == Key.Return) {
+                if (CatalogueList.current-row >= 0) {
+                    CatalogueList.edit();
+                }
+                return accept;
+            }
+            if (event.text == Key.Delete) {
+                if (CatalogueList.current-row >= 0) {
+                    CatalogueList.remove();
+                }
+                return accept;
+            }
+            if (event.text == Key.F5) {
+                CatalogueList.refresh();
+                return accept;
+            }
+            if (event.text == Key.Escape) {
+                CatalogueList.close-window();
+                return accept;
+            }
+            reject
+        }
+
+        VerticalLayout {
+            toolbar := ListToolbar {
+                has-selection: CatalogueList.current-row >= 0;
+                add => { CatalogueList.add(); }
+                edit => { CatalogueList.edit(); }
+                remove => { CatalogueList.remove(); }
+                import => { CatalogueList.import(); }
+                export => { CatalogueList.export(); }
+                refresh => { CatalogueList.refresh(); }
+                close => { CatalogueList.close-window(); }
+            }
+
+            HorizontalLayout {
+                padding: Theme.padding;
+                spacing: Theme.spacing;
+                Text {
+                    text: "Kërko:";
+                    vertical-alignment: center;
+                }
+                search := LineEdit {
+                    text <=> CatalogueList.search-text;
+                    placeholder-text: root.search-placeholder;
+                    horizontal-stretch: 1;
+                    edited(text) => { CatalogueList.search-edited(text); }
+                    accepted(text) => {
+                        CatalogueList.search-accepted(text);
+                        table.focus();
+                    }
+                }
+            }
+
+            table := StandardTableView {
+                vertical-stretch: 1;
+                columns <=> root.columns;
+                rows: CatalogueList.rows;
+                current-row <=> CatalogueList.current-row;
+                sort-ascending(column) => { CatalogueList.sort-ascending(column); }
+                sort-descending(column) => { CatalogueList.sort-descending(column); }
+                row-pointer-event(row, event, position) => {
+                    if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                        CatalogueList.row-pressed(row);
+                    }
+                }
+            }
+
+            Rectangle {
+                height: Theme.status-height;
+                background: Theme.chrome-background;
+                HorizontalLayout {
+                    padding-left: Theme.padding;
+                    padding-right: Theme.padding;
+                    status := Text {
+                        text: CatalogueList.status-text;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    if CatalogueList.input-blocked || CatalogueList.busy: InputBlocker { }
+}

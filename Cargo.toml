@@ -1,0 +1,101 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/crm"]
+# vendor/ holds patched upstream crates, not workspace members (fmt, clippy and tests skip them).
+exclude = ["vendor"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+rust-version = "1.97"
+license = "UNLICENSED"
+publish = false
+
+[workspace.lints.rust]
+# Only `cfg(windows)` FFI modules may opt out, with `#[allow(unsafe_code)]` and a `// SAFETY:` comment.
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.dependencies]
+# Workspace crates
+crm-domain = { path = "crates/domain" }
+crm-storage = { path = "crates/storage" }
+crm-services = { path = "crates/services" }
+crm-search = { path = "crates/search" }
+crm-io = { path = "crates/io" }
+crm-reports = { path = "crates/reports" }
+crm-ui = { path = "crates/ui" }
+
+# UI
+slint = { version = "=1.18.1", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-winit",
+    "renderer-software",
+    "software-renderer-systemfonts",
+    "accessibility",
+    "raw-window-handle-06",
+] }
+slint-build = "=1.18.1"
+i-slint-backend-testing = "=1.18.1"
+rfd = "=0.17.2"
+
+# Storage
+rusqlite = { version = "=0.40.2", features = ["bundled", "backup"] }
+r2d2 = "=0.8.10"
+r2d2_sqlite = "=0.35.0"
+rusqlite_migration = "=2.6.0"
+fs4 = "=1.1.0"
+
+# Domain and services
+rust_decimal = "=1.43.0"
+jiff = "=0.2.38"
+thiserror = "=2.0.21"
+anyhow = "=1.0.104"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+argon2 = "=0.6.0"
+strsim = "=0.11.1"
+
+# Import/export
+csv = "=1.4.0"
+encoding_rs = "=0.8.42"
+calamine = "=0.36.1"
+rust_xlsxwriter = "=0.99.1"
+
+# Logging
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter", "fmt"] }
+tracing-appender = "=0.2.5"
+
+# Windows-only
+windows = "=0.62.2"
+embed-resource = "=3.0.12"
+
+# Receipt rendering (task 012)
+typst = "=0.15.1"
+typst-render = "=0.15.1"
+typst-as-lib = "=0.17.0"
+
+# Encryption (plans 013-016)
+zeroize = "=1.9.1"
+getrandom = "=0.4.3"
+chacha20poly1305 = "=0.11.0"
+
+# Tests
+tempfile = "=3.27.0"
+
+# SQLite3 Multiple Ciphers 2.6.1 in place of the bundled SQLite (vendor/libsqlite3-sys/PATCHED.md).
+[patch.crates-io]
+libsqlite3-sys = { path = "vendor/libsqlite3-sys" }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+# Unwind, not abort (F-014): the writer thread and the UI background jobs contain a
+# panicking job with catch_unwind, which only works in an unwinding build.
+panic = "unwind"
+strip = true

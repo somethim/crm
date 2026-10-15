@@ -1,0 +1,39 @@
+// The shell's bridge to Rust (crates/ui/src/shell): state shown by the main window and the
+// callbacks of the shell-owned menu items.
+
+export global ShellBridge {
+    // The lock screen covers the main window (the gate unlocked it before it was built).
+    in-out property <bool> locked;
+    // A modal dialog is open over the main window.
+    in-out property <bool> input-blocked;
+    // Background work is running (busy overlay).
+    in-out property <bool> busy;
+    in-out property <string> busy-text: "Duke punuar…";
+
+    // Status bar.
+    in-out property <string> last-backup: "Asnjë rezervim";
+    in-out property <string> flash-text;
+
+    // The lock screen (PasswordScreen): "unlock", or "new-password" after a recovery key.
+    in-out property <string> lock-mode: "unlock";
+    in-out property <string> lock-error;
+    // Argon2 runs on a worker: "Duke kontrolluar…" and the inputs disabled.
+    in-out property <bool> lock-busy;
+    // Bumped by Rust to clear the fields and focus the first one.
+    in-out property <int> lock-reset;
+    callback lock-submit-entry(entry: string);
+    callback lock-submit-new(password: string, repeat: string);
+
+    // Shell-owned menu items.
+    callback backup-now();
+    callback backup-to-pc();
+    callback restore();
+    callback change-password();
+    callback settings();
+    callback lock();
+    callback about();
+    callback exit();
+
+    // Shows a transient message in the status bar (cleared after 5 s).
+    callback flash(text: string);
+}

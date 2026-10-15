@@ -1,0 +1,1 @@
+crm.ico is generated from crm.svg with: magick -background none apps/crm/resources/crm.svg -define icon:auto-resize=256,64,48,32,16 apps/crm/resources/crm.ico

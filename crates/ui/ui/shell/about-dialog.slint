@@ -1,0 +1,44 @@
+// Ndihmë → Rreth programit. AboutSlint is required by the Slint royalty-free licence.
+
+import { AboutSlint } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+
+export component AboutDialog inherits Dialog {
+    title: "Rreth programit";
+    in property <string> version;
+    in property <string> data-folder;
+    callback dismiss();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width;
+    max-width: Theme.dialog-width;
+    preferred-width: Theme.dialog-width;
+
+    VerticalLayout {
+        height: self.preferred-height;
+        alignment: start;
+        padding: Theme.dialog-padding;
+        spacing: Theme.spacing;
+
+        Text {
+            text: "CRM";
+            font-size: 20px;
+            font-weight: 600;
+        }
+        Text { text: "Versioni " + root.version; }
+        Text {
+            text: "Dosja e të dhënave: " + root.data-folder;
+            wrap: word-wrap;
+        }
+        AboutSlint {
+            preferred-height: 120px;
+        }
+    }
+
+    DialogButton {
+        text: "Mbyll";
+        primary: true;
+        dialog-button-role: accept;
+        clicked => { root.dismiss(); }
+    }
+}

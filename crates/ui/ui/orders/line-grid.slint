@@ -1,0 +1,305 @@
+// The invoice line grid: a spreadsheet-like table of editable cells.
+// Sale:     # | Artikulli | Sasia | Çmimi | Vlera | ✕
+// Purchase: # | Artikulli | Sasia | Çmimi i blerjes | Çmimi i shitjes | Vlera | ✕
+// The keyboard behaviour (Tab, arrows, Enter, Esc, Ctrl+Delete) is decided in Rust
+// (orders::grid_nav) through `key`; this component only reports keys and focus and
+// focuses the cell Rust asks for. Every row exists (no virtualisation), so a focus
+// request always reaches its cell. The rows scroll with an always-visible bar
+// (VScrollBar) instead of Fluent's thin auto-hiding one.
+
+import { Palette, ScrollView } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { VScrollBar } from "../shared/scroll-bar.slint";
+import { GridRow, SuggestionItem } from "bridge.slint";
+import { GridCell, LinkText, SuggestionList } from "cells.slint";
+
+component HeaderText inherits Text {
+    vertical-alignment: center;
+    font-weight: 600;
+    overflow: elide;
+}
+
+export component LineGrid inherits Rectangle {
+    // 0 = Shitje, 1 = Blerje.
+    in property <int> kind;
+    in property <[GridRow]> rows;
+    in property <int> focus-row;
+    in property <int> focus-col;
+    in property <int> focus-serial;
+    in-out property <int> focus-done;
+    in-out property <int> focused-row: -1;
+    in-out property <int> focused-col: -1;
+    in property <bool> dropdown-open;
+    in property <int> dropdown-row;
+    in property <[SuggestionItem]> items;
+    // "{shown}/{total} sugjerime" above the product suggestions.
+    in property <string> count-text;
+    in-out property <int> highlighted: -1;
+    callback key(row: int, col: int, key: string, shift: bool, ctrl: bool, text: string) -> bool;
+    callback edited(row: int, col: int, text: string);
+    callback focused(row: int, col: int, text: string);
+    callback committed(row: int, col: int, text: string);
+    callback product-chosen(index: int);
+    callback stock-clicked(row: int);
+    callback remove-row(row: int);
+
+    out property <length> row-height: 36px;
+    out property <length> header-height: 30px;
+    property <length> pad: 4px;
+    property <length> num-w: 36px;
+    property <length> qty-w: 96px;
+    property <length> price-w: 120px;
+    property <length> value-w: 130px;
+    property <length> remove-w: 28px;
+    // The always-visible scroll bar right of the rows.
+    property <length> bar-w: 14px;
+    property <bool> purchase: root.kind == 1;
+    property <length> product-x: root.pad + root.num-w + root.pad;
+    property <length> product-w: root.width - root.product-x - root.pad * (root.purchase ? 6 : 5) - root.qty-w - root.price-w * (root.purchase ? 2 : 1) - root.value-w - root.remove-w - root.bar-w;
+
+    border-width: 1px;
+    border-color: Theme.border;
+    background: Palette.background;
+
+    changed focused-row => {
+        if (root.focused-row >= 0) {
+            if (root.focused-row * root.row-height < -scroll.content-y) {
+                scroll.content-y = -root.focused-row * root.row-height;
+            } else if ((root.focused-row + 1) * root.row-height > -scroll.content-y + scroll.visible-height) {
+                scroll.content-y = -((root.focused-row + 1) * root.row-height - scroll.visible-height);
+            }
+        }
+    }
+
+    VerticalLayout {
+        Rectangle {
+            height: root.header-height;
+            background: Theme.chrome-background;
+            HorizontalLayout {
+                padding-left: root.pad;
+                padding-right: root.pad + root.bar-w;
+                spacing: root.pad;
+                HeaderText {
+                    text: "#";
+                    width: root.num-w;
+                    horizontal-alignment: right;
+                }
+                HeaderText {
+                    text: "Artikulli";
+                    horizontal-stretch: 1;
+                }
+                HeaderText {
+                    text: "Sasia";
+                    width: root.qty-w;
+                    horizontal-alignment: right;
+                }
+                HeaderText {
+                    text: root.purchase ? "Çmimi i blerjes" : "Çmimi";
+                    width: root.price-w;
+                    horizontal-alignment: right;
+                }
+                if root.purchase: HeaderText {
+                    text: "Çmimi i shitjes";
+                    width: root.price-w;
+                    horizontal-alignment: right;
+                }
+                HeaderText {
+                    text: "Vlera";
+                    width: root.value-w;
+                    horizontal-alignment: right;
+                }
+                Rectangle {
+                    width: root.remove-w;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            vertical-stretch: 1;
+            scroll := ScrollView {
+                vertical-stretch: 1;
+                vertical-scrollbar-policy: always-off;
+                VerticalLayout {
+                    alignment: start;
+                    for line[i] in root.rows: Rectangle {
+                        height: root.row-height;
+                        background: line.placeholder ? Theme.chrome-background.transparentize(60%) : transparent;
+                        Rectangle {
+                            y: parent.height - 1px;
+                            height: 1px;
+                            background: Theme.border;
+                        }
+                        HorizontalLayout {
+                            padding-left: root.pad;
+                            padding-right: root.pad;
+                            padding-top: 2px;
+                            padding-bottom: 2px;
+                            spacing: root.pad;
+                            Text {
+                                text: line.number;
+                                width: root.num-w;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                                color: Palette.foreground.transparentize(30%);
+                            }
+                            HorizontalLayout {
+                                horizontal-stretch: 1;
+                                spacing: root.pad;
+                                product-cell := GridCell {
+                                    horizontal-stretch: 1;
+                                    cell-row: i;
+                                    cell-col: 0;
+                                    value: line.product;
+                                    rev: line.rev;
+                                    read-only: line.locked;
+                                    placeholder-text: line.placeholder ? "Shto artikull…" : "";
+                                    focus-row: root.focus-row;
+                                    focus-col: root.focus-col;
+                                    focus-serial: root.focus-serial;
+                                    focus-done <=> root.focus-done;
+                                    key(r, c, k, s, ctl, t) => { return root.key(r, c, k, s, ctl, t); }
+                                    edited(r, c, t) => { root.edited(r, c, t); }
+                                    focused(r, c, t) => {
+                                        root.focused-row = r;
+                                        root.focused-col = c;
+                                        root.focused(r, c, t);
+                                    }
+                                    committed(r, c, t) => {
+                                        if (root.focused-row == r && root.focused-col == c) {
+                                            root.focused-row = -1;
+                                            root.focused-col = -1;
+                                        }
+                                        root.committed(r, c, t);
+                                    }
+                                }
+                                if line.stock != "": LinkText {
+                                    text: line.stock;
+                                    enabled: line.stock-link;
+                                    text-color: line.stock-warn ? Theme.error-color : line.stock-link ? Palette.accent-background : Palette.foreground;
+                                    clicked => { root.stock-clicked(i); }
+                                }
+                            }
+                            GridCell {
+                                width: root.qty-w;
+                                number: true;
+                                cell-row: i;
+                                cell-col: 1;
+                                value: line.qty;
+                                rev: line.rev;
+                                focus-row: root.focus-row;
+                                focus-col: root.focus-col;
+                                focus-serial: root.focus-serial;
+                                focus-done <=> root.focus-done;
+                                key(r, c, k, s, ctl, t) => { return root.key(r, c, k, s, ctl, t); }
+                                edited(r, c, t) => { root.edited(r, c, t); }
+                                focused(r, c, t) => {
+                                    root.focused-row = r;
+                                    root.focused-col = c;
+                                    root.focused(r, c, t);
+                                }
+                                committed(r, c, t) => {
+                                    if (root.focused-row == r && root.focused-col == c) {
+                                        root.focused-row = -1;
+                                        root.focused-col = -1;
+                                    }
+                                    root.committed(r, c, t);
+                                }
+                            }
+                            GridCell {
+                                width: root.price-w;
+                                number: true;
+                                cell-row: i;
+                                cell-col: 2;
+                                value: line.price;
+                                rev: line.rev;
+                                read-only: line.locked;
+                                focus-row: root.focus-row;
+                                focus-col: root.focus-col;
+                                focus-serial: root.focus-serial;
+                                focus-done <=> root.focus-done;
+                                key(r, c, k, s, ctl, t) => { return root.key(r, c, k, s, ctl, t); }
+                                edited(r, c, t) => { root.edited(r, c, t); }
+                                focused(r, c, t) => {
+                                    root.focused-row = r;
+                                    root.focused-col = c;
+                                    root.focused(r, c, t);
+                                }
+                                committed(r, c, t) => {
+                                    if (root.focused-row == r && root.focused-col == c) {
+                                        root.focused-row = -1;
+                                        root.focused-col = -1;
+                                    }
+                                    root.committed(r, c, t);
+                                }
+                            }
+                            if root.purchase: GridCell {
+                                width: root.price-w;
+                                number: true;
+                                cell-row: i;
+                                cell-col: 3;
+                                value: line.sell;
+                                rev: line.rev;
+                                read-only: line.locked;
+                                focus-row: root.focus-row;
+                                focus-col: root.focus-col;
+                                focus-serial: root.focus-serial;
+                                focus-done <=> root.focus-done;
+                                key(r, c, k, s, ctl, t) => { return root.key(r, c, k, s, ctl, t); }
+                                edited(r, c, t) => { root.edited(r, c, t); }
+                                focused(r, c, t) => {
+                                    root.focused-row = r;
+                                    root.focused-col = c;
+                                    root.focused(r, c, t);
+                                }
+                                committed(r, c, t) => {
+                                    if (root.focused-row == r && root.focused-col == c) {
+                                        root.focused-row = -1;
+                                        root.focused-col = -1;
+                                    }
+                                    root.committed(r, c, t);
+                                }
+                            }
+                            Text {
+                                text: line.value;
+                                width: root.value-w;
+                                horizontal-alignment: right;
+                                vertical-alignment: center;
+                            }
+                            Rectangle {
+                                width: root.remove-w;
+                                if !line.placeholder: LinkText {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    text: "✕";
+                                    font-size: 14px;
+                                    text-color: Palette.foreground.transparentize(30%);
+                                    clicked => { root.remove-row(i); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            bar := VScrollBar {
+                width: root.bar-w;
+                value <=> scroll.content-y;
+                maximum: scroll.content-height - scroll.visible-height;
+                page-size: scroll.visible-height;
+            }
+        }
+    }
+
+    // The product suggestions of the focused Artikulli cell; above the row when there
+    // is more room above it.
+    if root.dropdown-open: list := SuggestionList {
+        property <length> anchor-y: root.header-height + root.dropdown-row * root.row-height + scroll.content-y;
+        property <length> room-below: root.height - (self.anchor-y + root.row-height);
+        x: root.product-x;
+        width: max(260px, root.product-w);
+        y: (self.room-below < self.list-height && self.anchor-y > self.room-below) ? self.anchor-y - self.list-height : self.anchor-y + root.row-height;
+        items: root.items;
+        count-text: root.count-text;
+        highlighted <=> root.highlighted;
+        chosen(index) => { root.product-chosen(index); }
+    }
+}

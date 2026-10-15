@@ -1,0 +1,17 @@
+/target
+/data/
+/backups/
+/logs/
+*.db
+# Committed encrypted test fixtures (plan 014).
+!crates/storage/tests/fixtures/*.db
+*.db-wal
+*.db-shm
+.DS_Store
+.idea
+.vscode
+
+# Local working files (agents, plans, audits); never committed.
+/.claude/
+/plans/
+/audit/

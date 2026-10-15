@@ -1,0 +1,34 @@
+// The start-up gate: one PasswordScreen in its own window, shown before the main window
+// (crm_ui::run_gate).
+
+import { PasswordScreen } from "password-screen.slint";
+
+export component UnlockWindow inherits Window {
+    title: "CRM";
+    in-out property <string> mode: "unlock";
+    in-out property <string> error;
+    in-out property <bool> busy;
+    in-out property <int> reset;
+    in-out property <string> recovery-code;
+    in-out property <string> wipe-code;
+    callback submit-new(password: string, repeat: string);
+    callback submit-entry(entry: string);
+    callback codes-confirmed();
+    // Fixed size, so the window manager floats it (and Windows centres it).
+    min-width: 560px;
+    max-width: 560px;
+    min-height: 600px;
+    max-height: 600px;
+
+    screen := PasswordScreen {
+        mode: root.mode;
+        error: root.error;
+        busy: root.busy;
+        reset: root.reset;
+        recovery-code: root.recovery-code;
+        wipe-code: root.wipe-code;
+        submit-new(password, repeat) => { root.submit-new(password, repeat); }
+        submit-entry(entry) => { root.submit-entry(entry); }
+        codes-confirmed => { root.codes-confirmed(); }
+    }
+}

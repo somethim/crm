@@ -1,0 +1,132 @@
+// The product property dialog ("Artikull i ri" / "Artikulli: {emri}"). Ruaj saves and
+// closes, Fshi (a saved product only) deletes after a confirmation and closes, Anulo / Esc
+// closes without saving. Enter in a field = Ruaj.
+
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { InputBlocker } from "../shared/busy-overlay.slint";
+import { FormField } from "form-field.slint";
+
+export component ProductDialog inherits Dialog {
+    in property <string> caption: "Artikull i ri";
+    title: root.caption;
+    in-out property <string> code;
+    in-out property <string> name;
+    in-out property <string> unit: "SHISHE";
+    in-out property <string> buy-price;
+    in-out property <string> sell-price;
+    in-out property <string> quantity;
+    in property <string> code-error;
+    in property <string> name-error;
+    in property <string> unit-error;
+    in property <string> buy-price-error;
+    in property <string> sell-price-error;
+    in property <string> quantity-error;
+    // "Kodi, njësia, çmimet dhe gjendja ndahen me n artikuj të tjerë." (empty = none).
+    in property <string> note;
+    // Editing a saved record (shows Fshi); false for a new one.
+    in property <bool> editing;
+    // A confirm or message box is open over this dialog.
+    in-out property <bool> input-blocked;
+    callback ok();
+    callback delete();
+    callback cancel();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width;
+    max-width: Theme.dialog-width;
+    preferred-width: Theme.dialog-width;
+    forward-focus: code-field;
+
+    FocusScope {
+        height: content.preferred-height;
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.cancel();
+                return accept;
+            }
+            reject
+        }
+
+        content := VerticalLayout {
+            alignment: start;
+            padding: Theme.dialog-padding;
+            spacing: Theme.padding;
+
+            code-field := FormField {
+                label: "Kodi";
+                placeholder: "A0001";
+                text <=> root.code;
+                error: root.code-error;
+                accepted => { root.ok(); }
+            }
+            name-field := FormField {
+                label: "Emri";
+                text <=> root.name;
+                error: root.name-error;
+                accepted => { root.ok(); }
+            }
+            unit-field := FormField {
+                label: "Njësia";
+                placeholder: "p.sh. KG";
+                text <=> root.unit;
+                error: root.unit-error;
+                accepted => { root.ok(); }
+            }
+            buy-field := FormField {
+                label: "Çmimi i blerjes";
+                placeholder: "0";
+                text <=> root.buy-price;
+                error: root.buy-price-error;
+                accepted => { root.ok(); }
+            }
+            sell-field := FormField {
+                label: "Çmimi i shitjes";
+                placeholder: "0";
+                text <=> root.sell-price;
+                error: root.sell-price-error;
+                accepted => { root.ok(); }
+            }
+            quantity-field := FormField {
+                label: "Gjendja";
+                placeholder: "0";
+                text <=> root.quantity;
+                error: root.quantity-error;
+                accepted => { root.ok(); }
+            }
+            if root.note != "": Text {
+                text: root.note;
+                wrap: word-wrap;
+                font-italic: true;
+            }
+
+            // Fixed order on every platform: Ruaj (Enter), Fshi (saved records only), Anulo (Esc).
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.spacing;
+                padding-top: Theme.padding;
+
+                save-button := DialogButton {
+                    text: "Ruaj";
+                    primary: true;
+                    clicked => { root.ok(); }
+                }
+                if root.editing: DialogButton {
+                    text: "Fshi";
+                    clicked => { root.delete(); }
+                }
+                cancel-button := DialogButton {
+                    text: "Anulo";
+                    clicked => { root.cancel(); }
+                }
+            }
+        }
+
+        if root.input-blocked: InputBlocker { }
+    }
+
+    changed input-blocked => {
+        if (!self.input-blocked) {
+            code-field.focus();
+        }
+    }
+}

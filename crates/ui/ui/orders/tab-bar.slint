@@ -1,0 +1,71 @@
+// The document tabs: title (with "•" when unsaved), a "×" close button on each tab,
+// and a context menu with "Mbyll të gjitha" / "Mbyll të tjerat".
+
+import { Palette, ScrollView } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { OrdersBridge, TabItem } from "bridge.slint";
+import { LinkText } from "cells.slint";
+
+export component TabBar inherits Rectangle {
+    height: 32px;
+    background: Theme.chrome-background;
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    Flickable {
+        content-width: max(self.width, row.preferred-width);
+        row := HorizontalLayout {
+            alignment: start;
+            padding-left: 4px;
+            padding-top: 3px;
+            spacing: 2px;
+            for tab[i] in OrdersBridge.tabs: Rectangle {
+                property <bool> active: i == OrdersBridge.active-tab;
+                width: min(260px, max(120px, inner.preferred-width));
+                background: self.active ? Palette.background : area.has-hover ? Palette.background.transparentize(50%) : transparent;
+                border-width: 1px;
+                border-color: self.active ? Theme.border : transparent;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                area := TouchArea {
+                    clicked => { OrdersBridge.select-tab(i); }
+                }
+                ContextMenuArea {
+                    Menu {
+                        MenuItem {
+                            title: "Mbyll të gjitha";
+                            activated => { OrdersBridge.close-all-tabs(); }
+                        }
+                        MenuItem {
+                            title: "Mbyll të tjerat";
+                            activated => { OrdersBridge.close-other-tabs(i); }
+                        }
+                    }
+                }
+                inner := HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 4px;
+                    spacing: 6px;
+                    Text {
+                        text: tab.dirty ? tab.title + " •" : tab.title;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                        font-weight: i == OrdersBridge.active-tab ? 600 : 400;
+                    }
+                    LinkText {
+                        width: 22px;
+                        text: "×";
+                        font-size: 16px;
+                        text-color: Palette.foreground.transparentize(30%);
+                        clicked => { OrdersBridge.close-tab(i); }
+                    }
+                }
+            }
+        }
+    }
+}

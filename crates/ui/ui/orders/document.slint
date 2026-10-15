@@ -1,0 +1,183 @@
+// One order document: the header (owner with its NIPT / Adresa line,
+// Përshkrimi, Data, Nr. Porosie) in one column of label + content-sized field
+// rows, the line grid and the footer: "Totali" bottom-left, [Ruaj] [Printo] [Fshi]
+// bottom-right (the shell binds their enabled state and actions to its Commands).
+// The kind is fixed per document (it shows in the tab title).
+
+import { LineEdit, Palette } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { DateField } from "../shared/date-field.slint";
+import { OrdersBridge } from "bridge.slint";
+import { SuggestionList } from "cells.slint";
+import { LineGrid } from "line-grid.slint";
+import { SearchField } from "search-field.slint";
+
+// One header row: a fixed-width label, then the field at its own width.
+component HeaderRow inherits HorizontalLayout {
+    in property <string> label;
+    in property <length> label-width;
+    alignment: start;
+    spacing: Theme.spacing;
+
+    Text {
+        text: root.label;
+        width: root.label-width;
+        min-height: 32px;
+        vertical-alignment: center;
+    }
+
+    @children
+}
+
+export component DocumentView inherits Rectangle {
+    in property <bool> can-save;
+    in property <bool> can-print;
+    in property <bool> can-delete;
+    callback save();
+    callback print();
+    callback delete();
+    property <length> label-w: 96px;
+    property <length> field-w: 420px;
+    property <int> owner-focus-serial: OrdersBridge.owner-focus-serial;
+
+    changed owner-focus-serial => {
+        owner.focus-edit();
+    }
+    init => {
+        if (OrdersBridge.owner-focus-serial > 0) {
+            owner.focus-edit();
+        }
+    }
+
+    VerticalLayout {
+        padding: Theme.padding;
+        spacing: Theme.spacing;
+
+        // Element order is the Tab order: Klienti, Përshkrimi, Data, then the grid.
+        VerticalLayout {
+            spacing: Theme.spacing;
+            HeaderRow {
+                label: OrdersBridge.doc-kind == 0 ? "Klienti" : "Furnitori";
+                label-width: root.label-w;
+                owner := SearchField {
+                    width: root.field-w;
+                    placeholder-text: "Kërko sipas emrit ose përshkrimit…";
+                    text <=> OrdersBridge.owner-text;
+                    items: OrdersBridge.owner-items;
+                    highlighted <=> OrdersBridge.owner-highlighted;
+                    open <=> OrdersBridge.owner-open;
+                    query(text) => { OrdersBridge.owner-edited(text); }
+                    focused(text) => { OrdersBridge.owner-focused(text); }
+                    chosen(index) => { OrdersBridge.owner-chosen(index); }
+                }
+            }
+            // "NIPT: … · Adresa: …" of the chosen owner, under its field.
+            if OrdersBridge.owner-detail != "": HorizontalLayout {
+                alignment: start;
+                spacing: Theme.spacing;
+                Rectangle {
+                    width: root.label-w;
+                }
+                detail := Text {
+                    width: root.field-w;
+                    text: OrdersBridge.owner-detail;
+                    color: Palette.foreground.transparentize(40%);
+                    overflow: elide;
+                }
+            }
+            HeaderRow {
+                label: "Përshkrimi";
+                label-width: root.label-w;
+                description := LineEdit {
+                    width: root.field-w;
+                    text <=> OrdersBridge.doc-description;
+                    edited(text) => { OrdersBridge.description-edited(text); }
+                    changed has-focus => {
+                        if (self.has-focus) {
+                            OrdersBridge.header-focused();
+                        }
+                    }
+                }
+            }
+            HeaderRow {
+                label: "Data";
+                label-width: root.label-w;
+                date := DateField {
+                    width: 140px;
+                    text <=> OrdersBridge.doc-date;
+                    changed(iso) => { OrdersBridge.date-edited(iso); }
+                }
+            }
+            HeaderRow {
+                label: "Nr. Porosie";
+                label-width: root.label-w;
+                number := Text {
+                    text: OrdersBridge.doc-number;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        grid := LineGrid {
+            vertical-stretch: 1;
+            kind: OrdersBridge.doc-kind;
+            rows: OrdersBridge.grid-rows;
+            focus-row: OrdersBridge.grid-focus-row;
+            focus-col: OrdersBridge.grid-focus-col;
+            focus-serial: OrdersBridge.grid-focus-serial;
+            focus-done <=> OrdersBridge.grid-focus-done;
+            focused-row <=> OrdersBridge.focused-row;
+            focused-col <=> OrdersBridge.focused-col;
+            dropdown-open: OrdersBridge.dropdown-open;
+            count-text: OrdersBridge.product-count-text;
+            dropdown-row: OrdersBridge.dropdown-row;
+            items: OrdersBridge.product-items;
+            highlighted <=> OrdersBridge.product-highlighted;
+            key(r, c, k, s, ctl, t) => { return OrdersBridge.grid-key(r, c, k, s, ctl, t); }
+            edited(r, c, t) => { OrdersBridge.cell-edited(r, c, t); }
+            focused(r, c, t) => { OrdersBridge.cell-focused(r, c, t); }
+            committed(r, c, t) => { OrdersBridge.cell-committed(r, c, t); }
+            product-chosen(index) => { OrdersBridge.product-chosen(index); }
+            stock-clicked(row) => { OrdersBridge.stock-clicked(row); }
+            remove-row(row) => { OrdersBridge.remove-row(row); }
+        }
+
+        HorizontalLayout {
+            spacing: Theme.padding;
+            total := Text {
+                horizontal-stretch: 1;
+                text: OrdersBridge.doc-total;
+                font-size: 16px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+            save := DialogButton {
+                text: "Ruaj";
+                primary: true;
+                enabled: root.can-save;
+                clicked => { root.save(); }
+            }
+            print := DialogButton {
+                text: "Printo";
+                enabled: root.can-print;
+                clicked => { root.print(); }
+            }
+            delete := DialogButton {
+                text: "Fshi";
+                enabled: root.can-delete;
+                clicked => { root.delete(); }
+            }
+        }
+    }
+
+    // The owner suggestions, over the grid.
+    if OrdersBridge.owner-open && owner.editing: SuggestionList {
+        x: owner.anchor.x - root.absolute-position.x;
+        y: owner.anchor.y - root.absolute-position.y;
+        width: owner.width;
+        items: OrdersBridge.owner-items;
+        count-text: OrdersBridge.owner-count-text;
+        highlighted <=> OrdersBridge.owner-highlighted;
+        chosen(index) => { OrdersBridge.owner-chosen(index); }
+    }
+}

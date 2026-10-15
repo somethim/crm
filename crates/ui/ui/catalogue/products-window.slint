@@ -1,0 +1,16 @@
+// "Artikujt": the product list.
+
+import { CatalogueListWindow } from "list-window.slint";
+
+export component ProductsWindow inherits CatalogueListWindow {
+    title: "Artikujt";
+    search-placeholder: "Kërko artikuj…";
+    columns: [
+        { title: "Kodi", min-width: 90px },
+        { title: "Emri", min-width: 240px, horizontal-stretch: 1 },
+        { title: "Njësia", min-width: 80px },
+        { title: "Çmimi i blerjes", min-width: 120px },
+        { title: "Çmimi i shitjes", min-width: 120px },
+        { title: "Gjendja", min-width: 80px },
+    ];
+}

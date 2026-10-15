@@ -1,0 +1,30 @@
+[package]
+name = "crm-services"
+description = "Application services and use cases"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+crm-domain.workspace = true
+crm-storage.workspace = true
+crm-search.workspace = true
+crm-io.workspace = true
+argon2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+jiff.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+chacha20poly1305.workspace = true
+getrandom.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tracing-subscriber.workspace = true

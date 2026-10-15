@@ -1,0 +1,23 @@
+[package]
+name = "crm-io"
+description = "CSV/XLSX import, CSV export and XLSX reports"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+crm-domain.workspace = true
+csv.workspace = true
+encoding_rs.workspace = true
+calamine.workspace = true
+rust_xlsxwriter.workspace = true
+thiserror.workspace = true
+jiff.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,0 +1,109 @@
+// The main working area: the filters and the order list on the left (about 30% of
+// the width, never so narrow that the list columns are cut), the tabbed order
+// documents on the right (about 70%). With no document open the
+// right side offers "+ Porosi Shitje" / "+ Porosi Blerje".
+
+import { Button, Palette } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { OrdersBridge } from "bridge.slint";
+import { ShellBridge } from "../shell/bridges.slint";
+import { Filters } from "filters.slint";
+import { OrderList } from "order-list.slint";
+import { TabBar } from "tab-bar.slint";
+import { DocumentView } from "document.slint";
+
+export component OrdersWorkspace inherits Rectangle {
+    // The empty state's buttons; the shell routes them to Commands.new-sale / new-purchase.
+    callback new-sale();
+    callback new-purchase();
+    // The footer buttons of the open order; the shell binds them to its Commands.
+    in property <bool> can-save;
+    in property <bool> can-print;
+    in property <bool> can-delete;
+    callback save();
+    callback print();
+    callback delete();
+
+    // A modal dialog, the busy overlay or the lock screen covers the window; their
+    // FocusScope takes the focus, so it is handed back when they go (F-008).
+    property <bool> covered: ShellBridge.input-blocked || ShellBridge.busy || ShellBridge.locked;
+    changed covered => {
+        if (!self.covered) {
+            OrdersBridge.refocus();
+        }
+    }
+
+    // The panes are placed by hand: a layout's stretch starts from each pane's
+    // preferred width, so it would not keep 30 / 70. Nr., Lloji, Klienti (min),
+    // Totali and Data take 436px, plus the padding and the table's scroll bar.
+    property <length> list-width: max(468px, (root.width - Theme.separator-width) * 0.3);
+
+    list-pane := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.list-width;
+        height: root.height;
+        background: Theme.chrome-background;
+        VerticalLayout {
+            padding: Theme.padding;
+            spacing: Theme.padding;
+            Filters { }
+            OrderList { }
+            // "{n} porosi · Totali: … LEK".
+            summary := Text {
+                text: OrdersBridge.list-summary;
+                color: Palette.foreground.transparentize(40%);
+            }
+        }
+    }
+    Rectangle {
+        x: root.list-width;
+        y: 0px;
+        width: Theme.separator-width;
+        height: root.height;
+        background: Theme.border;
+    }
+    VerticalLayout {
+        x: root.list-width + Theme.separator-width;
+        y: 0px;
+        width: root.width - self.x;
+        height: root.height;
+        if OrdersBridge.tabs.length > 0: TabBar { }
+        if OrdersBridge.has-document: DocumentView {
+            vertical-stretch: 1;
+            can-save: root.can-save;
+            can-print: root.can-print;
+            can-delete: root.can-delete;
+            save => { root.save(); }
+            print => { root.print(); }
+            delete => { root.delete(); }
+        }
+        if !OrdersBridge.has-document: VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: Theme.padding * 2;
+            HorizontalLayout {
+                alignment: center;
+                spacing: Theme.padding * 2;
+                empty-new-sale := Button {
+                    text: "+ Porosi Shitje";
+                    width: 200px;
+                    height: 56px;
+                    clicked => { root.new-sale(); }
+                }
+                empty-new-purchase := Button {
+                    text: "+ Porosi Blerje";
+                    width: 200px;
+                    height: 56px;
+                    clicked => { root.new-purchase(); }
+                }
+            }
+            Text {
+                text: "Ose hapni një porosi nga lista. Shkurtore: Ctrl+N (Shitje), Ctrl+Shift+N (Blerje).";
+                color: Palette.foreground.transparentize(40%);
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

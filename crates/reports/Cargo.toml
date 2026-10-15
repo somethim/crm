@@ -1,0 +1,27 @@
+[package]
+name = "crm-reports"
+description = "Receipt rendering and printing"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+crm-domain.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+typst.workspace = true
+typst-render.workspace = true
+typst-as-lib.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_Storage_Xps",
+] }

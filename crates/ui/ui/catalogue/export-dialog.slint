@@ -1,0 +1,19 @@
+// "Eksporto": kept for the 008 contract. The export itself uses the native save dialog
+// directly (crates/ui/src/catalogue/transfer.rs) and reports in the status bar; this window
+// is the busy cover shown over a list while the file is written.
+
+import { BusyOverlay } from "../shared/busy-overlay.slint";
+
+export component ExportDialog inherits Window {
+    title: "Eksporto";
+    in property <string> text: "Duke eksportuar…";
+    // A fixed size, so the window manager floats it instead of tiling it.
+    min-width: 320px;
+    max-width: 320px;
+    preferred-width: 320px;
+    min-height: 120px;
+    max-height: 120px;
+    preferred-height: 120px;
+
+    BusyOverlay { text: root.text; }
+}

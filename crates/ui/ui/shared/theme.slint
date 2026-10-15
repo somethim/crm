@@ -1,0 +1,43 @@
+// Shared spacing, padding and toolbar styling for every window (classic Windows layout).
+
+import { Button, Palette } from "std-widgets.slint";
+
+export global Theme {
+    out property <length> spacing: 6px;
+    out property <length> padding: 8px;
+    out property <length> dialog-padding: 12px;
+    out property <length> label-width: 160px;
+    // The fixed widths of the dialogs (the height follows the content).
+    out property <length> dialog-width-small: 400px;
+    out property <length> dialog-width: 480px;
+    out property <length> dialog-width-wide: 560px;
+    out property <length> toolbar-height: 36px;
+    // Height of a single-line text box in dialogs and forms.
+    out property <length> field-height: 32px;
+    out property <length> status-height: 24px;
+    out property <length> separator-width: 1px;
+    out property <TextHorizontalAlignment> money-align: TextHorizontalAlignment.right;
+    out property <brush> chrome-background: Palette.alternate-background;
+    out property <brush> border: Palette.border;
+    out property <brush> error-color: #c42b1c;
+    out property <brush> overlay-dim: #00000060;
+}
+
+// A compact toolbar button.
+export component ToolButton inherits Button {
+    min-width: 72px;
+    height: 28px;
+}
+
+// A dialog button (Ruaj, Fshi, Anulo, …): a normal width and never taller than its text
+// needs, whatever size the window manager gives the dialog.
+export component DialogButton inherits Button {
+    min-width: 88px;
+    height: self.preferred-height;
+}
+
+// A thin vertical separator between toolbar groups.
+export component ToolSeparator inherits Rectangle {
+    width: Theme.separator-width;
+    background: Theme.border;
+}

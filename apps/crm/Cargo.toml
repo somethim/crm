@@ -1,0 +1,34 @@
+[package]
+name = "crm"
+description = "CRM desktop application"
+edition.workspace = true
+version.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "crm"
+path = "src/main.rs"
+
+[dependencies]
+crm-ui.workspace = true
+crm-services.workspace = true
+crm-storage.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Threading",
+] }
+
+[build-dependencies]
+embed-resource.workspace = true

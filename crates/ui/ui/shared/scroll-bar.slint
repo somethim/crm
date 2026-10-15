@@ -1,0 +1,80 @@
+// An always-visible vertical scroll bar for a ScrollView whose own (Fluent: thin and
+// auto-hiding) bar is turned off with `vertical-scrollbar-policy: always-off`:
+//
+//     bar := VScrollBar {
+//         value <=> scroll.content-y;
+//         maximum: scroll.content-height - scroll.visible-height;
+//         page-size: scroll.visible-height;
+//     }
+//
+// Drag the thumb, click the track to move a page, or turn the wheel over it; the wheel over
+// the content still scrolls the ScrollView itself.
+
+import { Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export component VScrollBar inherits Rectangle {
+    // How far the content can scroll (content height - visible height; <= 0 = all visible).
+    in property <length> maximum;
+    // The visible height.
+    in property <length> page-size;
+    // The ScrollView's content-y: 0 at the top, -maximum at the bottom.
+    in-out property <length> value;
+
+    property <length> pad: 2px;
+    property <length> track-height: root.height - 2 * root.pad;
+    property <bool> scrollable: root.maximum > 0;
+    property <length> thumb-height: !root.scrollable ? 0px : min(root.track-height, max(24px, root.track-height * root.page-size / (root.maximum + root.page-size)));
+    property <length> thumb-y: root.pad + (!root.scrollable ? 0px : (root.track-height - root.thumb-height) * (-root.value / root.maximum));
+
+    width: 14px;
+    background: Palette.alternate-background;
+    border-width: 1px;
+    border-color: Theme.border;
+
+    function scroll-to(v: length) {
+        root.value = max(-root.maximum, min(0px, v));
+    }
+
+    area := TouchArea {
+        property <bool> dragging;
+        property <length> start-offset;
+        property <length> start-y;
+
+        pointer-event(event) => {
+            if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down && root.scrollable) {
+                if (self.mouse-y >= thumb.y && self.mouse-y <= thumb.y + thumb.height) {
+                    self.dragging = true;
+                    self.start-offset = -root.value;
+                    self.start-y = self.mouse-y;
+                } else {
+                    self.dragging = false;
+                    root.scroll-to(self.mouse-y < thumb.y ? root.value + root.page-size : root.value - root.page-size);
+                }
+            }
+        }
+
+        moved => {
+            if (self.pressed && self.dragging && root.track-height > root.thumb-height) {
+                root.scroll-to(-(self.start-offset + (self.mouse-y - self.start-y) * root.maximum / (root.track-height - root.thumb-height)));
+            }
+        }
+
+        scroll-event(event) => {
+            if (event.delta-y != 0) {
+                root.scroll-to(root.value + event.delta-y);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    thumb := Rectangle {
+        x: 3px;
+        y: root.thumb-y;
+        width: root.width - 6px;
+        height: root.thumb-height;
+        border-radius: 4px;
+        background: area.pressed && area.dragging ? Palette.foreground.transparentize(25%) : area.has-hover ? Palette.foreground.transparentize(40%) : Palette.foreground.transparentize(55%);
+    }
+}

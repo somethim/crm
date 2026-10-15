@@ -1,0 +1,45 @@
+// Covers a window while background work runs ("Duke punuar…"), or dims it while a modal
+// dialog is open. Swallows every pointer and key event under it.
+
+import { Palette, Spinner } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+// Dims the window and blocks input (modal dialog open).
+export component InputBlocker inherits Rectangle {
+    background: Theme.overlay-dim;
+
+    TouchArea { }
+
+    fs := FocusScope {
+        key-pressed(event) => { accept }
+        key-released(event) => { accept }
+    }
+
+    init => { fs.focus(); }
+}
+
+// The busy state of a window.
+export component BusyOverlay inherits InputBlocker {
+    in property <string> text: "Duke punuar…";
+
+    VerticalLayout {
+        alignment: center;
+        spacing: Theme.spacing;
+
+        HorizontalLayout {
+            alignment: center;
+            Spinner {
+                indeterminate: true;
+                width: 32px;
+                height: 32px;
+            }
+        }
+
+        Text {
+            text: root.text;
+            horizontal-alignment: center;
+            color: Palette.foreground;
+            font-size: 14px;
+        }
+    }
+}

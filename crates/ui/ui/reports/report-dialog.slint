@@ -1,0 +1,151 @@
+// Raporte → Eksporto raport…: the date range, format and invoice kind, a preview of
+// up to 500 rows, and the XLSX export. The Rust side (src/reports) fills the table.
+
+import { ComboBox, StandardTableView } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { DateField } from "../shared/date-field.slint";
+
+export component ReportDialog inherits Dialog {
+    title: "Eksporto raport";
+
+    // Fields ("Nga data", "Deri më" as dd.MM.yyyy; indices into the two lists).
+    in-out property <string> from-text;
+    in-out property <string> to-text;
+    in-out property <int> format-index: 0;
+    in-out property <int> kind-index: 0;
+
+    // Preview: title, "{nga} - {deri} · {total} rreshta", a note (truncated or no rows).
+    in property <string> report-title;
+    in property <string> report-subtitle;
+    in property <string> note;
+    in-out property <[TableColumn]> columns;
+    in property <[[StandardListViewItem]]> rows;
+    // Set once a preview is shown; a field change then marks it stale.
+    in-out property <bool> has-preview;
+    in-out property <bool> stale;
+
+    in-out property <string> error;
+    // A preview or export runs in the background.
+    in property <bool> busy;
+
+    callback preview();
+    callback save();
+    callback close-clicked();
+
+    // A fixed size (the preview table scrolls), so the window manager floats it instead of
+    // tiling it; it fits the main window's 1024x640 minimum screen.
+    min-width: 960px;
+    max-width: 960px;
+    preferred-width: 960px;
+    min-height: 600px;
+    max-height: 600px;
+    preferred-height: 600px;
+
+    function field-changed() {
+        if (root.has-preview) {
+            root.stale = true;
+        }
+    }
+
+    VerticalLayout {
+        padding: Theme.dialog-padding;
+        spacing: Theme.spacing;
+
+        GridLayout {
+            spacing: Theme.spacing;
+            Row {
+                Text {
+                    text: "Nga data";
+                    vertical-alignment: center;
+                }
+                from := DateField {
+                    text <=> root.from-text;
+                    // «Deri» before «Nga» is refused (RANGE_REVERSED): the calendar greys those days.
+                    max-date: root.to-text;
+                    enabled: !root.busy;
+                    changed(iso) => { root.field-changed(); }
+                }
+                Text {
+                    text: "Deri më";
+                    vertical-alignment: center;
+                }
+                to := DateField {
+                    text <=> root.to-text;
+                    min-date: root.from-text;
+                    enabled: !root.busy;
+                    changed(iso) => { root.field-changed(); }
+                }
+            }
+            Row {
+                Text {
+                    text: "Formati";
+                    vertical-alignment: center;
+                }
+                format := ComboBox {
+                    model: ["Regjistri analitik", "Sipas artikujve"];
+                    current-index <=> root.format-index;
+                    enabled: !root.busy;
+                    selected(value) => { root.field-changed(); }
+                }
+                Text {
+                    text: "Lloji";
+                    vertical-alignment: center;
+                }
+                kind := ComboBox {
+                    model: ["Të dyja", "Shitje", "Blerje"];
+                    current-index <=> root.kind-index;
+                    enabled: !root.busy;
+                    selected(value) => { root.field-changed(); }
+                }
+            }
+        }
+
+        if root.error != "": Text {
+            text: root.error;
+            color: Theme.error-color;
+            wrap: word-wrap;
+        }
+
+        if root.report-title != "": Text {
+            text: root.report-title;
+            font-weight: 700;
+        }
+        if root.report-subtitle != "": Text {
+            text: root.report-subtitle;
+        }
+        if root.note != "": Text {
+            text: root.note;
+            wrap: word-wrap;
+        }
+        if root.stale: Text {
+            text: "Parapamja nuk është e përditësuar";
+            color: Theme.error-color;
+        }
+
+        table := StandardTableView {
+            vertical-stretch: 1;
+            min-height: 240px;
+            columns <=> root.columns;
+            rows: root.rows;
+        }
+    }
+
+    preview-button := DialogButton {
+        text: "Shiko të dhënat";
+        primary: true;
+        enabled: !root.busy;
+        dialog-button-role: action;
+        clicked => { root.preview(); }
+    }
+    save-button := DialogButton {
+        text: "Ruaj si Excel…";
+        enabled: !root.busy;
+        dialog-button-role: action;
+        clicked => { root.save(); }
+    }
+    close-button := DialogButton {
+        text: "Mbyll";
+        dialog-button-role: reject;
+        clicked => { root.close-clicked(); }
+    }
+}

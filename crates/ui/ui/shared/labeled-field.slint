@@ -1,0 +1,20 @@
+// A form row: a fixed-width label on the left and the field on the right, at the field's
+// preferred height.
+
+import { Theme } from "theme.slint";
+
+export component LabeledField inherits HorizontalLayout {
+    in property <string> label;
+    in property <length> label-width: Theme.label-width;
+    spacing: Theme.spacing;
+    // A row never grows taller than its field, whatever size the window gets.
+    height: self.preferred-height;
+
+    Text {
+        text: root.label;
+        width: root.label-width;
+        vertical-alignment: center;
+    }
+
+    @children
+}

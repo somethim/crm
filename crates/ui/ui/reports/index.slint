@@ -1,0 +1,8 @@
+// Reports (task 011): "Raporte → Eksporto raport…" and the toolbar call
+// ReportsBridge.open-dialog() on the main window; the Rust side opens ReportDialog.
+
+export { ReportDialog } from "report-dialog.slint";
+
+export global ReportsBridge {
+    callback open-dialog();
+}

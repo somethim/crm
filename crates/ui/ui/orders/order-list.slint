@@ -1,0 +1,47 @@
+// The order list: Nr., Lloji, Klienti (Furnitori for Blerje), Totali (LEK), Data.
+// A header click sorts (again: reverses). Enter or a double-click opens the order.
+
+import { Palette, StandardTableView } from "std-widgets.slint";
+import { OrdersBridge } from "bridge.slint";
+
+export component OrderList inherits FocusScope {
+    focus-on-click: false;
+    focus-on-tab-navigation: false;
+    vertical-stretch: 1;
+
+    capture-key-pressed(event) => {
+        if (event.text == Key.Return && OrdersBridge.list-current >= 0) {
+            OrdersBridge.open-order(OrdersBridge.list-current);
+            return accept;
+        }
+        return reject;
+    }
+
+    table := StandardTableView {
+        width: 100%;
+        height: 100%;
+        columns: [
+            { title: "Nr.", width: 60px },
+            { title: "Lloji", width: 56px },
+            { title: OrdersBridge.filter-kind == 1 ? "Furnitori" : "Klienti", horizontal-stretch: 1, min-width: 100px },
+            { title: "Totali", width: 128px },
+            { title: "Data", width: 92px },
+        ];
+        sort-ascending(col) => { OrdersBridge.list-sort(col, true); }
+        sort-descending(col) => { OrdersBridge.list-sort(col, false); }
+        rows: OrdersBridge.list-rows;
+        current-row <=> OrdersBridge.list-current;
+        row-pointer-event(row, event, position) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                OrdersBridge.list-clicked(row);
+            }
+        }
+    }
+
+    if OrdersBridge.list-rows.length == 0: Text {
+        text: "Nuk u gjetën porosi.";
+        color: Palette.foreground.transparentize(40%);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

@@ -1,0 +1,78 @@
+// A text field with a suggestion list (used for the owner of a document). The list
+// itself is a `SuggestionList` that the parent places over everything else at
+// `anchor`, so it is not clipped or covered by later siblings.
+// Keys while the list is open: ↓/↑ move the highlight (wrapping), Enter chooses the
+// highlighted item, Esc closes the list.
+
+import { LineEdit } from "std-widgets.slint";
+import { SuggestionItem } from "bridge.slint";
+
+export component SearchField inherits FocusScope {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    in property <[SuggestionItem]> items;
+    in-out property <int> highlighted: -1;
+    in-out property <bool> open;
+    out property <bool> editing: edit.has-focus;
+    // Where the parent shows the list (just below the field), in window coordinates.
+    out property <Point> anchor: { x: self.absolute-position.x, y: self.absolute-position.y + self.height };
+    callback query(text: string);
+    callback focused(text: string);
+    callback chosen(index: int);
+    focus-on-click: false;
+    focus-on-tab-navigation: false;
+    min-height: 32px;
+    horizontal-stretch: 1;
+
+    public function focus-edit() {
+        edit.focus();
+        edit.select-all();
+    }
+
+    capture-key-pressed(event) => {
+        if (!root.open) {
+            return reject;
+        }
+        if (event.text == Key.DownArrow) {
+            if (root.items.length > 0) {
+                root.highlighted = root.highlighted < 0 || root.highlighted >= root.items.length - 1 ? 0 : root.highlighted + 1;
+            }
+            return accept;
+        }
+        if (event.text == Key.UpArrow) {
+            if (root.items.length > 0) {
+                root.highlighted = root.highlighted <= 0 ? root.items.length - 1 : root.highlighted - 1;
+            }
+            return accept;
+        }
+        if (event.text == Key.Return && root.highlighted >= 0 && root.highlighted < root.items.length) {
+            root.chosen(root.highlighted);
+            return accept;
+        }
+        if (event.text == Key.Escape) {
+            root.open = false;
+            root.highlighted = -1;
+            return accept;
+        }
+        return reject;
+    }
+
+    edit := LineEdit {
+        width: 100%;
+        height: 100%;
+        text <=> root.text;
+        placeholder-text: root.placeholder-text;
+        edited(text) => {
+            root.highlighted = -1;
+            root.query(text);
+        }
+        changed has-focus => {
+            if (self.has-focus) {
+                root.focused(self.text);
+            } else {
+                root.open = false;
+                root.highlighted = -1;
+            }
+        }
+    }
+}

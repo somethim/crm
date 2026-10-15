@@ -1,0 +1,124 @@
+// "Importo": pick the kind and a CSV/Excel file, run the import (busy overlay), then show
+// the result: counts, every rejected row, and the pre-import backup copy.
+
+import { ComboBox, LineEdit, ListView } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { BusyOverlay } from "../shared/busy-overlay.slint";
+import { LabeledField } from "../shared/labeled-field.slint";
+
+export component ImportDialog inherits Window {
+    title: "Importo";
+    // 0 = Artikuj, 1 = Klientë, 2 = Furnitorë.
+    in-out property <int> kind;
+    in-out property <string> file-path;
+    in property <bool> busy;
+    // The result view is shown.
+    in property <bool> finished;
+    // "U krijuan: N", "U përditësuan: N", "U anashkaluan: N", "Dështuan: N" (one per line).
+    in property <string> counts-text;
+    // "Rreshti r: mesazhi" for every rejected row.
+    in property <[string]> errors;
+    // "Para importimit u krijua një rezervim: {skedari}" (empty = none).
+    in property <string> backup-text;
+    callback browse();
+    callback start();
+    callback dismiss();
+    // A fixed size per view (the error list scrolls), so the window manager floats it
+    // instead of tiling it.
+    private property <length> fixed-height: !root.finished ? 200px : root.errors.length > 0 ? 480px : 280px;
+    min-width: Theme.dialog-width-wide;
+    max-width: Theme.dialog-width-wide;
+    preferred-width: Theme.dialog-width-wide;
+    min-height: root.fixed-height;
+    max-height: root.fixed-height;
+    preferred-height: root.fixed-height;
+    forward-focus: keys;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape && !root.busy) {
+                root.dismiss();
+                return accept;
+            }
+            reject
+        }
+
+        if !root.finished: VerticalLayout {
+            padding: Theme.dialog-padding;
+            spacing: Theme.spacing;
+
+            LabeledField {
+                label: "Lloji";
+                kind-box := ComboBox {
+                    model: ["Artikuj", "Klientë", "Furnitorë"];
+                    current-index <=> root.kind;
+                    horizontal-stretch: 1;
+                }
+            }
+            LabeledField {
+                label: "Skedari";
+                path := LineEdit {
+                    height: Theme.field-height;
+                    text: root.file-path;
+                    read-only: true;
+                    placeholder-text: "Asnjë skedar i zgjedhur";
+                    horizontal-stretch: 1;
+                }
+                browse := DialogButton {
+                    text: "Shfleto…";
+                    clicked => { root.browse(); }
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.spacing;
+                start := DialogButton {
+                    text: "Importo";
+                    primary: true;
+                    enabled: root.file-path != "" && !root.busy;
+                    clicked => { root.start(); }
+                }
+                cancel := DialogButton {
+                    text: "Anulo";
+                    enabled: !root.busy;
+                    clicked => { root.dismiss(); }
+                }
+            }
+        }
+
+        if root.finished: VerticalLayout {
+            padding: Theme.dialog-padding;
+            spacing: Theme.spacing;
+
+            Text {
+                text: "Importimi përfundoi";
+                font-weight: 700;
+            }
+            counts := Text { text: root.counts-text; }
+            if root.errors.length > 0: Text { text: "Gabimet:"; }
+            if root.errors.length > 0: ListView {
+                min-height: 160px;
+                vertical-stretch: 1;
+                for line in root.errors: Text {
+                    text: line;
+                    wrap: word-wrap;
+                }
+            }
+            if root.backup-text != "": Text {
+                text: root.backup-text;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: end;
+                done := DialogButton {
+                    text: "Mbyll";
+                    primary: true;
+                    clicked => { root.dismiss(); }
+                }
+            }
+        }
+    }
+
+    if root.busy: BusyOverlay { }
+}

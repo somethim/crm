@@ -1,0 +1,67 @@
+// The toolbar of the catalogue list windows: [Shto] [Ndrysho] [Fshi] | [Importo…]
+// [Eksporto…] | [Rifresko] | [Mbyll].
+
+import { Theme, ToolButton, ToolSeparator } from "../shared/theme.slint";
+
+export component ListToolbar inherits Rectangle {
+    in property <bool> has-selection;
+    callback add();
+    callback edit();
+    callback remove();
+    callback import();
+    callback export();
+    callback refresh();
+    callback close();
+
+    height: Theme.toolbar-height;
+    background: Theme.chrome-background;
+
+    HorizontalLayout {
+        padding-left: Theme.padding;
+        padding-right: Theme.padding;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        spacing: Theme.spacing;
+        alignment: start;
+
+        add := ToolButton {
+            text: "Shto";
+            clicked => { root.add(); }
+        }
+        edit := ToolButton {
+            text: "Ndrysho";
+            enabled: root.has-selection;
+            clicked => { root.edit(); }
+        }
+        remove := ToolButton {
+            text: "Fshi";
+            enabled: root.has-selection;
+            clicked => { root.remove(); }
+        }
+        ToolSeparator { }
+        import := ToolButton {
+            text: "Importo…";
+            clicked => { root.import(); }
+        }
+        export := ToolButton {
+            text: "Eksporto…";
+            clicked => { root.export(); }
+        }
+        ToolSeparator { }
+        refresh := ToolButton {
+            text: "Rifresko";
+            clicked => { root.refresh(); }
+        }
+        ToolSeparator { }
+        close := ToolButton {
+            text: "Mbyll";
+            clicked => { root.close(); }
+        }
+    }
+
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.border;
+    }
+}

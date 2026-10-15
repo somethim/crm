@@ -1,0 +1,23 @@
+// "Klientët" and "Furnitorët": the owner lists (same columns).
+
+import { CatalogueListWindow } from "list-window.slint";
+
+component OwnersListWindow inherits CatalogueListWindow {
+    columns: [
+        { title: "Emri", min-width: 220px, horizontal-stretch: 1 },
+        { title: "Përshkrimi", min-width: 160px, horizontal-stretch: 1 },
+        { title: "NIPT", min-width: 110px },
+        { title: "Adresa", min-width: 160px, horizontal-stretch: 1 },
+        { title: "Llogari", min-width: 90px },
+    ];
+}
+
+export component ClientsWindow inherits OwnersListWindow {
+    title: "Klientët";
+    search-placeholder: "Kërko klientë…";
+}
+
+export component SuppliersWindow inherits OwnersListWindow {
+    title: "Furnitorët";
+    search-placeholder: "Kërko furnitorë…";
+}

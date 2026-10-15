@@ -1,0 +1,178 @@
+// Printo → "Parapamja e printimit": the receipt image (rendered by crm-reports at twice
+// the screen scale) in a scroll view, zoom 50–300 % (buttons, Ctrl+wheel, Ctrl +/−/0),
+// "Ruaj si foto…", "Printo…" (Windows only) and "Mbyll" (Esc).
+
+import { Button, ScrollView } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { InputBlocker } from "../shared/busy-overlay.slint";
+
+export component PrintPreview inherits Window {
+    title: "Parapamja e printimit";
+    min-width: 420px;
+    min-height: 480px;
+    preferred-width: 520px;
+    preferred-height: 760px;
+
+    // The rendered receipt and the paper width it represents (width_mm × 1 mm at 100 %).
+    in property <image> receipt;
+    in property <length> paper-width: 72mm;
+    // Rendering in progress / a status line ("Duke përgatitur parapamjen…", saved file).
+    in property <bool> loading: true;
+    in property <string> status-text;
+    // Printing works on Windows only; elsewhere the button is disabled with this hint.
+    in property <bool> can-print;
+    in property <string> print-hint;
+    // A modal message over this window.
+    in-out property <bool> input-blocked;
+
+    in-out property <int> zoom-percent: 100;
+
+    callback save-image();
+    callback print();
+    callback close-clicked();
+
+    public function zoom-by(steps: int) {
+        root.zoom-percent = max(50, min(300, root.zoom-percent + steps * 25));
+    }
+
+    property <length> image-width: root.paper-width * root.zoom-percent / 100;
+    property <length> image-height: root.receipt.width > 0
+        ? root.image-width * root.receipt.height / root.receipt.width
+        : 0px;
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.close-clicked();
+                return accept;
+            }
+            if (event.modifiers.control) {
+                if (event.text == "+" || event.text == "=") {
+                    root.zoom-by(1);
+                    return accept;
+                }
+                if (event.text == "-") {
+                    root.zoom-by(-1);
+                    return accept;
+                }
+                if (event.text == "0") {
+                    root.zoom-percent = 100;
+                    return accept;
+                }
+            }
+            reject
+        }
+
+        VerticalLayout {
+            padding: Theme.dialog-padding;
+            spacing: Theme.spacing;
+
+            HorizontalLayout {
+                spacing: Theme.spacing;
+                zoom-out := Button {
+                    text: "−";
+                    enabled: root.zoom-percent > 50;
+                    clicked => { root.zoom-by(-1); }
+                }
+                Text {
+                    text: root.zoom-percent + " %";
+                    min-width: 56px;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                zoom-in := Button {
+                    text: "+";
+                    enabled: root.zoom-percent < 300;
+                    clicked => { root.zoom-by(1); }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                background: Theme.chrome-background;
+                border-color: Theme.border;
+                border-width: Theme.separator-width;
+
+                scroll := ScrollView {
+                    content-width: max(self.visible-width, root.image-width + 2 * Theme.dialog-padding);
+                    content-height: max(self.visible-height, root.image-height + 2 * Theme.dialog-padding);
+
+                    // Ctrl+wheel zooms; a plain wheel goes on to the scroll view.
+                    wheel := TouchArea {
+                        scroll-event(event) => {
+                            if (!event.modifiers.control) {
+                                return reject;
+                            }
+                            if (event.delta-y > 0) {
+                                root.zoom-by(1);
+                            } else if (event.delta-y < 0) {
+                                root.zoom-by(-1);
+                            }
+                            accept
+                        }
+
+                        Rectangle {
+                            x: (parent.width - root.image-width) / 2;
+                            y: Theme.dialog-padding;
+                            width: root.image-width;
+                            height: root.image-height;
+                            background: white;
+                            drop-shadow-blur: 6px;
+                            drop-shadow-color: #00000040;
+
+                            image := Image {
+                                source: root.receipt;
+                                width: parent.width;
+                                height: parent.height;
+                                image-fit: fill;
+                            }
+                        }
+                    }
+                }
+
+                if root.loading: Text {
+                    text: "Duke përgatitur parapamjen…";
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            if root.status-text != "": Text {
+                text: root.status-text;
+                wrap: word-wrap;
+            }
+
+            HorizontalLayout {
+                spacing: Theme.spacing;
+                alignment: end;
+                save := Button {
+                    text: "Ruaj si foto…";
+                    enabled: !root.loading && root.receipt.width > 0;
+                    clicked => { root.save-image(); }
+                }
+                print-area := Rectangle {
+                    print := Button {
+                        text: "Printo…";
+                        primary: true;
+                        enabled: root.can-print && !root.loading && root.receipt.width > 0;
+                        clicked => { root.print(); }
+                    }
+                    if !root.can-print: Tooltip {
+                        text: @markdown("\{root.print-hint}");
+                    }
+                }
+                close := Button {
+                    text: "Mbyll";
+                    clicked => { root.close-clicked(); }
+                }
+            }
+        }
+    }
+
+    init => { keys.focus(); }
+
+    if root.input-blocked: InputBlocker { }
+}

@@ -1,0 +1,36 @@
+// The status bar: a transient message on the left and the last backup time,
+// in a subdued colour, on the right.
+
+import { Palette } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { ShellBridge } from "bridges.slint";
+
+export component StatusBar inherits Rectangle {
+    height: Theme.status-height;
+    background: Theme.chrome-background;
+
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.border;
+    }
+
+    HorizontalLayout {
+        padding-left: Theme.padding;
+        padding-right: Theme.padding;
+        spacing: Theme.padding;
+
+        flash := Text {
+            text: ShellBridge.flash-text;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+        last-backup := Text {
+            text: ShellBridge.last-backup;
+            color: Palette.foreground.transparentize(40%);
+            vertical-alignment: center;
+            horizontal-stretch: 0;
+        }
+    }
+}

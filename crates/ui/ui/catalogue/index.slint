@@ -1,0 +1,20 @@
+// Catalogue windows and dialogs (task 009). The stub contract of task 008 is kept:
+// CatalogueBridge and the window names below are used by the shell and by app.slint,
+// which re-exports this file with `export *`.
+
+export { CatalogueList } from "list-window.slint";
+export { ProductsWindow } from "products-window.slint";
+export { ClientsWindow, SuppliersWindow } from "owners-window.slint";
+export { ProductDialog } from "product-dialog.slint";
+export { OwnerDialog } from "owner-dialog.slint";
+export { ImportDialog } from "import-dialog.slint";
+export { ExportDialog } from "export-dialog.slint";
+
+export global CatalogueBridge {
+    // 0 = Artikujt, 1 = Klientët, 2 = Furnitorët.
+    callback open-list(kind: int);
+    callback import(kind: int);
+    callback export(kind: int);
+    // The list window of `kind` with its empty new-item dialog (Ctrl+R / Ctrl+K / Ctrl+F).
+    callback create(kind: int);
+}

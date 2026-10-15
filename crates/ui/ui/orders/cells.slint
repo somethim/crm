@@ -1,0 +1,226 @@
+// Building blocks of the line grid and the search fields: an editable grid cell
+// with key capture and programmatic focus, the suggestion list overlay and a small
+// link text outside the focus chain.
+
+import { LineEdit, Palette, ScrollView } from "std-widgets.slint";
+import { Theme } from "../shared/theme.slint";
+import { SuggestionItem } from "bridge.slint";
+
+// One editable cell. The FocusScope never takes the focus itself; it sees the keys of
+// its LineEdit first (capture), hands them to `key` and swallows the handled ones.
+// The cell focuses itself when `focus-serial` moves and (row, col) is the target.
+export component GridCell inherits FocusScope {
+    in property <int> cell-row;
+    in property <int> cell-col;
+    in property <string> value;
+    in property <int> rev;
+    in property <bool> number;
+    in property <string> placeholder-text;
+    in property <bool> read-only;
+    in property <int> focus-row;
+    in property <int> focus-col;
+    in property <int> focus-serial;
+    in-out property <int> focus-done;
+    out property <bool> editing: edit.has-focus;
+    callback key(row: int, col: int, key: string, shift: bool, ctrl: bool, text: string) -> bool;
+    callback edited(row: int, col: int, text: string);
+    callback focused(row: int, col: int, text: string);
+    callback committed(row: int, col: int, text: string);
+    focus-on-click: false;
+    focus-on-tab-navigation: false;
+    min-height: 32px;
+
+    function try-focus() {
+        if (root.focus-serial != root.focus-done && root.cell-row == root.focus-row && root.cell-col == root.focus-col) {
+            root.focus-done = root.focus-serial;
+            if (edit.has-focus) {
+                // Already focused (the row was re-sent after a save): report it
+                // again, Rust forgot the focus when it rebuilt the rows.
+                root.focused(root.cell-row, root.cell-col, edit.text);
+            } else {
+                edit.focus();
+            }
+            edit.select-all();
+        }
+    }
+
+    init => {
+        edit.text = root.value;
+        root.try-focus();
+        // A cell created together with its focus request (the rows were rebuilt,
+        // e.g. after a save): `changed has-focus` does not see the first focus of
+        // a new element, so report it here.
+        if (edit.has-focus) {
+            root.focused(root.cell-row, root.cell-col, edit.text);
+        }
+    }
+    changed focus-serial => {
+        root.try-focus();
+    }
+    changed rev => {
+        edit.text = root.value;
+    }
+    changed value => {
+        edit.text = root.value;
+    }
+
+    capture-key-pressed(event) => {
+        // Alt keys (Alt+←/→ switch tabs) go to the window, not to the grid navigation.
+        if (event.modifiers.alt) {
+            return reject;
+        }
+        if (root.key(root.cell-row, root.cell-col, event.text, event.modifiers.shift, event.modifiers.control, edit.text)) {
+            return accept;
+        }
+        return reject;
+    }
+
+    edit := LineEdit {
+        width: 100%;
+        height: 100%;
+        horizontal-alignment: root.number ? TextHorizontalAlignment.right : TextHorizontalAlignment.left;
+        placeholder-text: root.placeholder-text;
+        read-only: root.read-only;
+        edited(text) => {
+            root.edited(root.cell-row, root.cell-col, text);
+        }
+        changed has-focus => {
+            if (self.has-focus) {
+                self.select-all();
+                root.focused(root.cell-row, root.cell-col, self.text);
+            } else {
+                root.committed(root.cell-row, root.cell-col, self.text);
+            }
+        }
+    }
+}
+
+// The suggestion list: at most 10 rows of 40 px, then it scrolls. Hover highlights,
+// a click chooses. It never takes the focus (the search field keeps it). Each row
+// shows the label, a dimmed note after it and a dimmed detail on the right; a dimmed
+// "{shown}/{total} sugjerime" line (not a row) sits above them when there are any.
+export component SuggestionList inherits Rectangle {
+    in property <[SuggestionItem]> items;
+    in-out property <int> highlighted: -1;
+    in property <string> empty-text: "Nuk u gjet asnjë rezultat";
+    in property <string> count-text;
+    callback chosen(index: int);
+    out property <length> item-height: 40px;
+    property <length> count-height: root.count-text != "" && root.items.length > 0 ? 24px : 0px;
+    out property <length> list-height: min(10, max(1, root.items.length)) * root.item-height + root.count-height + 2px;
+    height: root.list-height;
+    background: Palette.background;
+    border-width: 1px;
+    border-color: Theme.border;
+    drop-shadow-blur: 6px;
+    drop-shadow-color: #00000040;
+    clip: true;
+
+    changed highlighted => {
+        if (root.highlighted >= 0) {
+            if (root.highlighted * root.item-height < -scroll.content-y) {
+                scroll.content-y = -root.highlighted * root.item-height;
+            } else if ((root.highlighted + 1) * root.item-height > -scroll.content-y + scroll.visible-height) {
+                scroll.content-y = -((root.highlighted + 1) * root.item-height - scroll.visible-height);
+            }
+        }
+    }
+
+    if root.count-height > 0: count := Text {
+        x: 8px;
+        y: 1px;
+        width: parent.width - 16px;
+        height: root.count-height;
+        text: root.count-text;
+        font-size: 11px;
+        color: Palette.foreground.transparentize(40%);
+        vertical-alignment: center;
+    }
+
+    if root.items.length == 0: Text {
+        x: 8px;
+        width: parent.width - 16px;
+        height: root.item-height;
+        text: root.empty-text;
+        color: Palette.foreground.transparentize(40%);
+        vertical-alignment: center;
+    }
+
+    scroll := ScrollView {
+        x: 1px;
+        y: 1px + root.count-height;
+        width: parent.width - 2px;
+        height: parent.height - 2px - root.count-height;
+        visible: root.items.length > 0;
+        VerticalLayout {
+            for item[i] in root.items: Rectangle {
+                height: root.item-height;
+                background: i == root.highlighted ? Palette.selection-background : transparent;
+                area := TouchArea {
+                    changed has-hover => {
+                        if (self.has-hover) {
+                            root.highlighted = i;
+                        }
+                    }
+                    clicked => {
+                        root.chosen(i);
+                    }
+                }
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 8px;
+                    Text {
+                        text: item.label;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: item.note == "" ? 1 : 0;
+                        max-width: item.note == "" ? root.width : root.width * 60%;
+                        color: i == root.highlighted ? Palette.selection-foreground : Palette.foreground;
+                    }
+                    if item.note != "": Text {
+                        text: item.note;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                        min-width: 0px;
+                        color: (i == root.highlighted ? Palette.selection-foreground : Palette.foreground).transparentize(40%);
+                    }
+                    Text {
+                        text: item.detail;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                        overflow: elide;
+                        horizontal-stretch: 0;
+                        max-width: root.width * 45%;
+                        color: (i == root.highlighted ? Palette.selection-foreground : Palette.foreground).transparentize(40%);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// A clickable text that is not in the focus chain (the "/ N" stock link, the ✕).
+export component LinkText inherits Rectangle {
+    in property <string> text;
+    in property <brush> text-color: Palette.accent-background;
+    in property <bool> enabled: true;
+    in property <length> font-size: 12px;
+    callback clicked();
+    min-width: label.preferred-width + 6px;
+    label := Text {
+        text: root.text;
+        color: root.text-color;
+        font-size: root.font-size;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+    area := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            root.clicked();
+        }
+    }
+}

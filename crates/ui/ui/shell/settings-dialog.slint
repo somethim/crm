@@ -1,0 +1,84 @@
+// Skedari → Cilësimet… (Ruaj / Anulo).
+
+import { LineEdit } from "std-widgets.slint";
+import { DialogButton, Theme } from "../shared/theme.slint";
+import { LabeledField } from "../shared/labeled-field.slint";
+
+export component SettingsDialog inherits Dialog {
+    title: "Cilësimet";
+    in-out property <string> idle-minutes;
+    in-out property <string> receipt-width;
+    in-out property <string> receipt-font;
+    in property <string> data-folder;
+    in-out property <string> error;
+    callback ok();
+    callback cancel();
+    // Fixed width; the height follows the content, so the window manager sees a fixed-size
+    // dialog (Hyprland floats it, Windows shows a normal dialog) instead of tiling it.
+    min-width: Theme.dialog-width-wide;
+    max-width: Theme.dialog-width-wide;
+    preferred-width: Theme.dialog-width-wide;
+
+    init => { idle.focus(); }
+
+    VerticalLayout {
+        height: self.preferred-height;
+        alignment: start;
+        padding: Theme.dialog-padding;
+        spacing: Theme.spacing;
+
+        LabeledField {
+            label-width: 320px;
+            label: "Kyçje automatike pas (minuta, 0 = joaktive)";
+            idle := LineEdit {
+                height: Theme.field-height;
+                text <=> root.idle-minutes;
+                input-type: number;
+            }
+        }
+        LabeledField {
+            label-width: 320px;
+            label: "Gjerësia e letrës së porosisë (mm)";
+            LineEdit {
+                height: Theme.field-height;
+                text <=> root.receipt-width;
+                input-type: number;
+            }
+        }
+        LabeledField {
+            label-width: 320px;
+            label: "Madhësia e shkronjave të porosisë (pt)";
+            LineEdit {
+                height: Theme.field-height;
+                text <=> root.receipt-font;
+                input-type: number;
+            }
+        }
+        LabeledField {
+            label-width: 320px;
+            label: "Dosja e të dhënave";
+            LineEdit {
+                height: Theme.field-height;
+                text: root.data-folder;
+                read-only: true;
+            }
+        }
+        Text {
+            text: root.error;
+            color: Theme.error-color;
+            wrap: word-wrap;
+        }
+    }
+
+    ok-button := DialogButton {
+        text: "Ruaj";
+        primary: true;
+        dialog-button-role: accept;
+        clicked => { root.ok(); }
+    }
+    DialogButton {
+        text: "Anulo";
+        dialog-button-role: reject;
+        clicked => { root.cancel(); }
+    }
+}

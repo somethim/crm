@@ -1,0 +1,279 @@
+// The main window (menu bar, toolbar, document area, status bar, lock screen) and every
+// window or global the Rust side creates or drives.
+
+import { Theme } from "shared/theme.slint";
+import { BusyOverlay, InputBlocker } from "shared/busy-overlay.slint";
+import { ShellBridge } from "shell/bridges.slint";
+import { Commands } from "shell/menus.slint";
+import { Toolbar } from "shell/toolbar.slint";
+import { StatusBar } from "shell/status-bar.slint";
+import { PasswordScreen } from "shell/password-screen.slint";
+import { OrdersBridge, OrdersWorkspace } from "orders/index.slint";
+
+// Features (tasks 009/010/011/012). Slint allows one `export *` per file, so catalogue uses it
+// and the others list their names; those names are fixed by the 008 stub contracts.
+export * from "catalogue/index.slint";
+export { OrdersBridge } from "orders/index.slint";
+export { ReportsBridge, ReportDialog } from "reports/index.slint";
+export { PrintPreview } from "print/print-preview.slint";
+
+// Shell and shared windows and globals.
+export { ShellBridge } from "shell/bridges.slint";
+export { Commands } from "shell/menus.slint";
+export { ChangePasswordDialog } from "shell/change-password-dialog.slint";
+export { UnlockWindow } from "shell/unlock-window.slint";
+export { SettingsDialog } from "shell/settings-dialog.slint";
+export { AboutDialog } from "shell/about-dialog.slint";
+export { RestoreDialog } from "shell/backup-dialogs.slint";
+export { FatalWindow } from "shell/fatal-window.slint";
+export { ConfirmDialog } from "shared/confirm-dialog.slint";
+export { MessageDialog } from "shared/message-dialog.slint";
+export { CalendarDay, DateParse, ParsedDate } from "shared/date-field.slint";
+export { Theme } from "shared/theme.slint";
+
+export component AppWindow inherits Window {
+    title: "CRM";
+    min-width: 1024px;
+    min-height: 640px;
+    preferred-width: 1280px;
+    preferred-height: 800px;
+
+    in-out property <bool> locked <=> ShellBridge.locked;
+    in-out property <bool> input-blocked <=> ShellBridge.input-blocked;
+
+    if !root.locked: MenuBar {
+        Menu {
+            title: "Skedari";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Rezervo tani";
+                activated => { Commands.backup-now(); }
+            }
+            MenuItem {
+                title: "Rezervo në këtë kompjuter…";
+                activated => { Commands.backup-to-pc(); }
+            }
+            MenuItem {
+                title: "Rikthe nga rezervimi…";
+                activated => { Commands.restore(); }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Ndrysho fjalëkalimin…";
+                activated => { Commands.change-password(); }
+            }
+            MenuItem {
+                title: "Cilësimet…";
+                activated => { Commands.settings(); }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Kyç";
+                shortcut: @keys(Control + L);
+                activated => { Commands.lock(); }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Dil";
+                activated => { Commands.exit(); }
+            }
+        }
+
+        Menu {
+            title: "Porositë";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Porosi Shitje e re";
+                shortcut: @keys(Control + N);
+                activated => { Commands.new-sale(); }
+            }
+            MenuItem {
+                title: "Porosi Blerje e re";
+                shortcut: @keys(Control + Shift + N);
+                activated => { Commands.new-purchase(); }
+            }
+            MenuItem {
+                title: "Kërko porosi";
+                shortcut: @keys(Control + O);
+                activated => { Commands.find-order(); }
+            }
+            MenuItem {
+                title: "Eksporto listën…";
+                activated => { Commands.export-list(); }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Ruaj";
+                shortcut: @keys(Control + S);
+                enabled: Commands.can-save;
+                activated => { Commands.save(); }
+            }
+            MenuItem {
+                title: "Printo";
+                shortcut: @keys(Control + P);
+                enabled: Commands.can-print;
+                activated => { Commands.print(); }
+            }
+            MenuItem {
+                title: "Fshi";
+                enabled: Commands.can-delete;
+                activated => { Commands.delete(); }
+            }
+            MenuSeparator { }
+            MenuItem {
+                title: "Mbyll skedën";
+                shortcut: @keys(Control + W);
+                activated => { Commands.close-tab(); }
+            }
+            MenuItem {
+                title: "Mbyll të gjitha skedat";
+                shortcut: @keys(Control + Shift + F4);
+                activated => { Commands.close-all-tabs(); }
+            }
+            MenuItem {
+                title: "Skeda e mëparshme";
+                shortcut: @keys(Alt + LeftArrow);
+                activated => { Commands.prev-tab(); }
+            }
+            MenuItem {
+                title: "Skeda tjetër";
+                shortcut: @keys(Alt + RightArrow);
+                activated => { Commands.next-tab(); }
+            }
+            MenuItem {
+                title: "Rifresko";
+                shortcut: @keys(F5);
+                activated => { Commands.refresh(); }
+            }
+        }
+
+        Menu {
+            title: "Artikujt";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Lista e artikujve…";
+                activated => { Commands.open-list(0); }
+            }
+            MenuItem {
+                title: "Artikull i ri…";
+                shortcut: @keys(Control + R);
+                activated => { Commands.new-product(); }
+            }
+            MenuItem {
+                title: "Importo artikuj…";
+                activated => { Commands.import(0); }
+            }
+            MenuItem {
+                title: "Eksporto artikuj…";
+                activated => { Commands.export(0); }
+            }
+        }
+
+        Menu {
+            title: "Klientët";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Lista e klientëve…";
+                activated => { Commands.open-list(1); }
+            }
+            MenuItem {
+                title: "Klient i ri…";
+                shortcut: @keys(Control + K);
+                activated => { Commands.new-client(); }
+            }
+            MenuItem {
+                title: "Importo klientë…";
+                activated => { Commands.import(1); }
+            }
+            MenuItem {
+                title: "Eksporto klientë…";
+                activated => { Commands.export(1); }
+            }
+        }
+
+        Menu {
+            title: "Furnitorët";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Lista e furnitorëve…";
+                activated => { Commands.open-list(2); }
+            }
+            MenuItem {
+                title: "Furnitor i ri…";
+                shortcut: @keys(Control + F);
+                activated => { Commands.new-supplier(); }
+            }
+            MenuItem {
+                title: "Importo furnitorë…";
+                activated => { Commands.import(2); }
+            }
+            MenuItem {
+                title: "Eksporto furnitorë…";
+                activated => { Commands.export(2); }
+            }
+        }
+
+        Menu {
+            title: "Raporte";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Eksporto raport…";
+                activated => { Commands.report(); }
+            }
+        }
+
+        Menu {
+            title: "Ndihmë";
+            enabled: !root.locked;
+            MenuItem {
+                title: "Rreth programit";
+                activated => { Commands.about(); }
+            }
+        }
+    }
+
+    // Ctrl+F4 = Mbyll skedën (as in Bilanc), next to the menu's Ctrl+W: a menu item
+    // carries one shortcut. Not a focus stop itself (like the date field's scope); it
+    // sees the keys of whatever field inside has the focus. No field uses Ctrl+F4.
+    FocusScope {
+        enabled: false;
+        capture-key-pressed(event) => {
+            if (event.text == Key.F4 && event.modifiers.control && !event.modifiers.shift && !event.modifiers.alt) {
+                Commands.close-tab();
+                return accept;
+            }
+            reject
+        }
+
+        VerticalLayout {
+            Toolbar { }
+            workspace := OrdersWorkspace {
+                vertical-stretch: 1;
+                new-sale => { Commands.new-sale(); }
+                new-purchase => { Commands.new-purchase(); }
+                can-save: Commands.can-save;
+                can-print: Commands.can-print;
+                can-delete: Commands.can-delete;
+                save => { Commands.save(); }
+                print => { Commands.print(); }
+                delete => { Commands.delete(); }
+            }
+            StatusBar { }
+        }
+    }
+
+    if root.input-blocked && !root.locked: InputBlocker { }
+
+    if ShellBridge.busy && !root.locked: BusyOverlay {
+        text: ShellBridge.busy-text;
+    }
+
+    if root.locked: lock := PasswordScreen {
+        mode: ShellBridge.lock-mode;
+        error: ShellBridge.lock-error;
+        busy: ShellBridge.lock-busy;
+        reset: ShellBridge.lock-reset;
+        submit-entry(entry) => { ShellBridge.lock-submit-entry(entry); }
+        submit-new(password, repeat) => { ShellBridge.lock-submit-new(password, repeat); }
+    }
+}

@@ -1,0 +1,120 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      # Debug info made the many Slint test binaries fill the runner's disk (linker Bus error).
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1-dev
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: fmt-check, clippy, test
+        run: just fmt-check clippy test
+
+  # Plans 014 and 015: the encrypted-database and key-file fixture tests built by cargo-xwin (clang-cl), handed to
+  # windows-latest, plus the full clang-cl release link of crm.exe.
+  xwin-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - name: Install clang 19, lld, llvm and jq
+        # clang-cl 18 (Ubuntu 24.04's default) hides the AVX2 intrinsic types in MSVC mode unless
+        # /arch:AVX2 is set, which breaks sqlite3mc's runtime-dispatched ChaCha20 code; 19 does not.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-19 lld-19 llvm-19 jq
+          echo /usr/lib/llvm-19/bin >> "$GITHUB_PATH"
+
+      - name: Install cargo-xwin
+        run: cargo install cargo-xwin --locked --version 0.23.1
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Check the vendored sqlite3mc amalgamation
+        run: just vendor-check
+
+      - name: Build the fixture tests for Windows (clang-cl)
+        run: |
+          set -euo pipefail
+          mkdir -p fixture-clang-cl
+          just win-fixture | while read -r exe; do
+            test -f "$exe"
+            cp "$exe" fixture-clang-cl/
+          done
+          ls -l fixture-clang-cl
+          test -n "$(ls fixture-clang-cl)"
+
+      - name: Build crm.exe (clang-cl release link)
+        run: just dist
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fixture-clang-cl
+          path: fixture-clang-cl/*.exe
+          if-no-files-found: error
+
+  # Plans 014 and 015: run the clang-cl fixture binaries, then the same tests from the
+  # native MSVC (cl.exe) build that release.yml uses.
+  windows-fixture:
+    runs-on: windows-latest
+    needs: xwin-fixture
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fixture-clang-cl
+          path: fixture-clang-cl
+
+      - name: Run the clang-cl fixture binaries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exes = Get-ChildItem fixture-clang-cl -Filter *.exe
+          if ($exes.Count -eq 0) { throw "no fixture binaries" }
+          foreach ($exe in $exes) {
+            & $exe.FullName
+            if ($LASTEXITCODE -ne 0) { throw "$($exe.Name) failed: $LASTEXITCODE" }
+          }
+
+      - name: Run the fixture tests from the native MSVC build
+        run: cargo test --release --target x86_64-pc-windows-msvc -p crm-storage -p crm-services --test encrypted_fixture --test keyfile_fixture
