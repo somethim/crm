@@ -1,5 +1,7 @@
 name: release
 
+# Push a tag vX.Y.Z to build Windows and Linux binaries and publish them as a GitHub Release.
+# Running it by hand builds the same files as workflow artifacts without publishing.
 on:
   workflow_dispatch:
   push:
@@ -53,3 +55,62 @@ jobs:
           name: crm-windows-x64
           path: crm-windows-x64.zip
           if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libfontconfig1-dev
+
+      - name: Install the toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Build crm
+        run: cargo build --release -p crm --target x86_64-unknown-linux-gnu
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p package/LICENSES
+          cp target/x86_64-unknown-linux-gnu/release/crm package/
+          cp README.md package/
+          cp crates/reports/assets/fonts/OFL.txt package/LICENSES/NotoSans-OFL.txt
+          cp vendor/libsqlite3-sys/LICENSE package/LICENSES/libsqlite3-sys-MIT.txt
+          cp vendor/libsqlite3-sys/LICENSE-sqlite3mc package/LICENSES/SQLite3MultipleCiphers-MIT.txt
+          tar -C package -czf crm-linux-x64.tar.gz .
+          tar -tzf crm-linux-x64.tar.gz
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: crm-linux-x64
+          path: crm-linux-x64.tar.gz
+          if-no-files-found: error
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -l dist
+          (cd dist && sha256sum crm-windows-x64.zip crm-linux-x64.tar.gz > SHA256SUMS)
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "crm $TAG" --generate-notes \
+            dist/crm-windows-x64.zip dist/crm-linux-x64.tar.gz dist/SHA256SUMS

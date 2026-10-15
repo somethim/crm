@@ -1,2 +1,4 @@
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+# /ignore:4099: Microsoft ships the static CRT without its .pdb files, so lld-link warns that it
+# cannot attach their debug info; the binary is unaffected.
+rustflags = ["-C", "target-feature=+crt-static", "-C", "link-arg=/ignore:4099"]
